@@ -6,10 +6,11 @@ const rateLimit = require('express-rate-limit');
 
 const clientRoutes = require('./routes/clientRoutes');
 const invoiceRoutes = require('./routes/invoiceRoutes');
+const webhookRoutes = require('./routes/webhookRoutes');
 const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3004;
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -24,6 +25,7 @@ app.use(express.json());
 
 app.use('/api/clients', clientRoutes);
 app.use('/api/invoices', invoiceRoutes);
+app.use('/api/facturas', webhookRoutes);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', message: 'API SIGO funcionando correctamente' });
