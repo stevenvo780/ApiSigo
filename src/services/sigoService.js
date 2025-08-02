@@ -7,19 +7,30 @@ class SigoService {
     this.username = process.env.SIGO_USERNAME;
     this.password = process.env.SIGO_PASSWORD;
     
+    // Configuraciones específicas de Colombia
+    this.ivaRate = parseFloat(process.env.IVA_COLOMBIA) || 19;
+    this.defaultCurrency = process.env.MONEDA_DEFAULT || 'COP';
+    this.defaultSerie = process.env.SIGO_SERIE_DEFAULT || 'FV';
+    
     this.client = axios.create({
       baseURL: this.baseURL,
       timeout: 30000,
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.apiKey}`
+        'Authorization': `Bearer ${this.apiKey}`,
+        'Accept': 'application/json'
       }
     });
 
     this.client.interceptors.response.use(
       response => response,
       error => {
-        console.error('SIGO API Error:', error.response?.data || error.message);
+        console.error('SIGO API Error:', {
+          status: error.response?.status,
+          data: error.response?.data,
+          message: error.message,
+          url: error.config?.url
+        });
         throw error;
       }
     );
@@ -87,38 +98,65 @@ class SigoService {
 
   async createInvoice(invoiceData) {
     try {
+      // Calcular totales con IVA colombiano si no están presentes
+      const subtotal = invoiceData.totales?.subtotal || this.calculateSubtotal(invoiceData.items);
+      const iva = invoiceData.totales?.igv || (subtotal * this.ivaRate / 100);
+      const total = invoiceData.totales?.total || (subtotal + iva);
+
       const response = await this.client.post('/facturas', {
-        tipo_documento: invoiceData.tipoDocumento || '01',
-        serie: invoiceData.serie,
+        tipo_documento: invoiceData.tipoDocumento || process.env.TIPO_DOCUMENTO_FACTURA || '01',
+        serie: invoiceData.serie || this.defaultSerie,
         numero: invoiceData.numero,
-        fecha_emision: invoiceData.fechaEmision,
+        fecha_emision: invoiceData.fechaEmision || new Date().toISOString().split('T')[0],
         fecha_vencimiento: invoiceData.fechaVencimiento,
-        moneda: invoiceData.moneda || 'PEN',
+        moneda: invoiceData.moneda || this.defaultCurrency,
         cliente: {
-          ruc: invoiceData.cliente.ruc,
+          nit: invoiceData.cliente.ruc || invoiceData.cliente.nit,
           razon_social: invoiceData.cliente.razonSocial,
-          direccion: invoiceData.cliente.direccion
+          direccion: invoiceData.cliente.direccion,
+          email: invoiceData.cliente.email,
+          telefono: invoiceData.cliente.telefono,
+          tipo_documento: process.env.TIPO_DOCUMENTO_CLIENTE || '31'
         },
         items: invoiceData.items.map(item => ({
-          codigo: item.codigo,
-          descripcion: item.descripcion,
-          cantidad: item.cantidad,
-          precio_unitario: item.precioUnitario,
-          valor_unitario: item.valorUnitario,
-          igv: item.igv,
-          total: item.total
+          codigo: item.codigo || item.sku || 'PROD001',
+          descripcion: item.descripcion || item.title,
+          cantidad: item.cantidad || item.quantity,
+          precio_unitario: item.precioUnitario || item.price,
+          valor_unitario: item.valorUnitario || item.price,
+          iva_porcentaje: this.ivaRate,
+          iva_valor: (item.precioUnitario || item.price) * (item.cantidad || item.quantity) * this.ivaRate / 100,
+          total: (item.precioUnitario || item.price) * (item.cantidad || item.quantity) * (1 + this.ivaRate / 100)
         })),
         totales: {
-          subtotal: invoiceData.totales.subtotal,
-          igv: invoiceData.totales.igv,
-          total: invoiceData.totales.total
+          subtotal: subtotal,
+          iva: iva,
+          total: total
+        },
+        observaciones: invoiceData.observaciones || 'Factura generada automáticamente desde Hub Central',
+        // Metadatos para trazabilidad
+        metadata: {
+          source: 'hub-central',
+          orderId: invoiceData.orderId,
+          timestamp: new Date().toISOString()
         }
       });
       
+      console.log(`✅ Factura creada en SIGO: ${invoiceData.serie || this.defaultSerie}-${invoiceData.numero}`);
       return response.data;
     } catch (error) {
+      console.error(`❌ Error creando factura en SIGO:`, error.response?.data || error.message);
       throw new Error(`Error creando factura: ${error.response?.data?.message || error.message}`);
     }
+  }
+
+  // Método auxiliar para calcular subtotal
+  calculateSubtotal(items) {
+    return items.reduce((sum, item) => {
+      const price = item.precioUnitario || item.price || 0;
+      const quantity = item.cantidad || item.quantity || 0;
+      return sum + (price * quantity);
+    }, 0);
   }
 
   async getInvoice(serie, numero) {
