@@ -124,7 +124,7 @@ class FacturaService {
       const valorTotalItem = item.total / 100; // Convertir centavos a COP
       const precioUnitario = item.unit_price / 100;
       
-            const calculoIVA = this.calcularIVA(valorTotalItem);
+      const calculoIVA = this.calcularIVA(valorTotalItem);
       
       return {
         codigo_producto: `GRAF-${item.product_id}`,
@@ -204,9 +204,38 @@ class FacturaService {
   /**
    * Calcular IVA (19%) para Colombia
    */
-  calcularIVA(items) {
-    const subtotal = this.calcularSubtotal(items);
-    return Math.round((subtotal * 0.19) * 100) / 100;
+  calcularIVA(valorTotal) {
+    // Si es un array de items, calcular el total primero
+    if (Array.isArray(valorTotal)) {
+      const total = valorTotal.reduce((sum, item) => {
+        return sum + (item.total || (item.quantity * item.unit_price));
+      }, 0);
+      valorTotal = total;
+    }
+    
+    // Calcular IVA 19% Colombia
+    const valorSinIVA = valorTotal / 1.19;
+    const iva = valorTotal - valorSinIVA;
+    
+    return {
+      valorSinIVA: Math.round(valorSinIVA * 100) / 100,
+      iva: Math.round(iva * 100) / 100
+    };
+  }
+
+  /**
+   * Calcular resumen total de la factura
+   */
+  calcularResumen(itemsFactura) {
+    const subtotal = itemsFactura.reduce((sum, item) => sum + item.valor_total, 0);
+    const iva = itemsFactura.reduce((sum, item) => sum + item.iva_total, 0);
+    const total = itemsFactura.reduce((sum, item) => sum + item.precio_total, 0);
+    
+    return {
+      subtotal: Math.round(subtotal * 100) / 100,
+      iva: Math.round(iva * 100) / 100,  
+      total: Math.round(total * 100) / 100
+    };
   }
 
   /**
