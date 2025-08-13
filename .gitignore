@@ -1,14 +1,5 @@
 node_modules
 dist
-
-# Jest
 coverage/
-*.test.js.map
-*.test.d.ts
-*.test.d.ts.map
-tests/*.js
-tests/*.d.ts
-tests/*.js.map
-tests/*.d.ts.map
 !tests/*.test.js
 !tests/*.test.ts
