@@ -1,7 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import { body, param, validationResult } from 'express-validator';
 import { sigoService } from '@/services/sigoService';
-import { CreateInvoiceData, InvoiceStatus } from '@/services/sigoService';
+import { CreateInvoiceData } from '@/services/sigoService';
+import { InvoiceStatus } from '@/types';
 
 // Validaciones para crear factura
 export const validateInvoice = [

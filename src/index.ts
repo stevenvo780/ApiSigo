@@ -51,9 +51,6 @@ if (process.env.NODE_ENV !== 'test') {
   app.use(requestLogger);
 }
 
-// Middleware para validar JSON
-app.use(validateJson);
-
 // Health check básico
 app.get('/health', (req, res) => {
   res.json({
@@ -145,6 +142,9 @@ app.get('/api/docs', (req, res) => {
 
 // Middleware para rutas no encontradas
 app.use(notFound);
+
+// Middleware para validar JSON (error handler)
+app.use(validateJson);
 
 // Middleware de manejo de errores (debe ser el último)
 app.use(errorHandler);
