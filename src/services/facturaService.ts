@@ -3,12 +3,8 @@ import {
   WebhookOrderData,
   SigoInvoiceData,
   FacturaServiceResponse,
-  TaxCalculation,
   SigoInvoiceItem,
-  SigoInvoiceSummary,
-  ValidationErrorData,
-  RequiredOrderFields,
-  ValidationResult
+  SigoInvoiceSummary
 } from '@/types';
 
 /**

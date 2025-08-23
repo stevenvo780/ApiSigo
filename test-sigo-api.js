@@ -14,7 +14,7 @@ require('dotenv').config();
 
 class SigoAPITester {
   constructor() {
-    this.baseURL = process.env.SIGO_API_URL || 'https://api.sigo.co';
+    this.baseURL = process.env.SIGO_API_URL || 'https://api.sigosoftware.com';
     this.apiKey = process.env.SIGO_API_KEY;
     this.username = process.env.SIGO_USERNAME;
     this.password = process.env.SIGO_PASSWORD;

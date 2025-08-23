@@ -1,21 +1,31 @@
-// Tipos para los webhooks del Hub Central
+// Tipos para el webhook de orden pagada (estructura real de Graf/Hub Central)
 export interface WebhookOrderData {
-  id: string;
-  numero: string;
-  total: number;
-  subtotal: number;
-  impuestos: number;
-  moneda: string;
-  fechaCreacion: string;
-  estado: string;
-  customer: Customer;
-  items: OrderItem[];
-  descuentos: Discount[];
-  metadatos?: Record<string, any>;
+  order_id: number;
+  store_id?: number;
+  customer_id?: number;
+  amount: number; // En centavos
+  currency: string;
+  items: Array<{
+    product_id: number;
+    product_name: string;
+    quantity: number;
+    unit_price: number; // En centavos
+    total: number; // En centavos
+  }>;
+  paid_at: string;
+  customer_name?: string;
+  customer_ruc?: string;
+  shipping_address?: {
+    address: string;
+    city?: string;
+    department?: string;
+    country?: string;
+  };
 }
 
+// Interfaces auxiliares simplificadas (compatibles con la estructura real)
 export interface Customer {
-  id: string;
+  id?: number;
   tipoDocumento: 'RUC' | 'DNI' | 'CE' | 'NIT' | 'CC';
   numeroDocumento: string;
   nombres: string;
@@ -35,15 +45,11 @@ export interface Address {
 }
 
 export interface OrderItem {
-  id: string;
-  nombre: string;
-  descripcion?: string;
-  cantidad: number;
-  precioUnitario: number;
-  subtotal: number;
-  impuestos: number;
-  total: number;
-  sku?: string;
+  product_id: number;
+  product_name: string;
+  quantity: number;
+  unit_price: number; // En centavos
+  total: number; // En centavos
 }
 
 export interface Discount {
@@ -93,160 +99,162 @@ export interface SigoInvoiceItem {
 
 export interface SigoInvoiceSummary {
   subtotal: number;
-  iva: number;
+  total_iva: number;
+  total_descuentos: number;
   total: number;
 }
 
-// Tipos para respuestas de SIGO API
-export interface SigoApiResponse {
-  id?: string;
-  documentoId?: string;
-  numero_documento?: string;
-  estado?: string;
-  pdfUrl?: string;
-  pdf_url?: string;
-  xmlUrl?: string;
-  xml_url?: string;
-  fecha_creacion?: string;
-  fecha_actualizacion?: string;
-}
-
-// Tipos para respuestas de nuestra API
-// Respuesta del servicio de facturas
+// Tipos para respuestas de servicios
 export interface FacturaServiceResponse {
   success: boolean;
-  factura_id: string;
-  sigo_id?: string;
-  serie: string;
-  numero: string;
-  estado: string;
-  mensaje?: string;
-  datos_transformados?: SigoInvoiceData;
-  errores?: string[];
-}
-
-// Tipos para webhooks enviados al Hub Central
-export interface WebhookFacturaCreada {
-  event_type: 'factura.creada';
-  source: 'apisigo';
-  timestamp: string;
-  data: {
+  data?: {
     factura_id: string;
-    order_id: number;
-    documento_sigo_id: string;
+    numero_factura: string;
     estado: string;
-    monto: number;
-    pdf_url: string;
-    created_at: string;
+    pdf_url?: string;
+    xml_url?: string;
   };
+  error?: string;
+  details?: any;
 }
 
-// Tipos para cálculos de impuestos
-export interface TaxCalculation {
-  valorSinIVA: number;
-  iva: number;
-  total?: number;
+export interface SigoServiceResponse {
+  success: boolean;
+  data?: any;
+  error?: string;
+  status_code?: number;
 }
 
-// Tipos para configuración
-export interface SigoConfig {
-  baseURL: string;
-  apiKey: string;
-  username?: string;
-  password?: string;
-  ivaRate: number;
-  defaultCurrency: string;
-  defaultSerie: string;
-  timeout: number;
-}
-
-// Tipos para errores personalizados
-export interface SigoApiErrorData {
+export interface WebhookServiceResponse {
+  success: boolean;
   message: string;
-  statusCode?: number;
-  originalError?: Error;
-  endpoint?: string;
-  requestData?: any;
+  data?: any;
+  error?: string;
+}
+
+// Tipos adicionales necesarios para el proyecto
+export interface TaxCalculation {
+  subtotal: number;
+  iva: number;
+  total: number;
+  rate: number;
 }
 
 export interface ValidationErrorData {
-  message: string;
   field: string;
+  message: string;
+  code: string;
   value?: any;
 }
-
-// Tipos para el sistema de webhooks
-export interface WebhookConfig {
-  hubCentralUrl: string;
-  webhookSecret: string;
-  maxRetries: number;
-  retryDelay: number;
-}
-
-export interface WebhookPayload {
-  event_type: string;
-  source: string;
-  timestamp: string;
-  data: any;
-}
-
-// Tipos para testing
-export interface MockOrderData extends WebhookOrderData {
-  // Propiedades adicionales para testing
-}
-
-export interface MockSigoResponse extends SigoApiResponse {
-  // Propiedades adicionales para testing
-}
-
-// Tipos para validaciones
-export type RequiredOrderFields = 'order_id' | 'amount' | 'items' | 'paid_at';
 
 export interface ValidationResult {
   isValid: boolean;
   errors: ValidationErrorData[];
+  warnings?: string[];
 }
 
-// Tipos para el estado de las facturas
-export type FacturaStatus = 
-  | 'pendiente'
-  | 'generada'
-  | 'enviada'
-  | 'aceptada'
-  | 'rechazada'
-  | 'anulada';
+export type RequiredOrderFields = 'order_id' | 'amount' | 'items' | 'paid_at';
 
-export type InvoiceStatus = 
+// Tipos para validación
+export interface ValidationError {
+  field: string;
+  message: string;
+  code: string;
+}
+
+export interface ApiError {
+  message: string;
+  code: string;
+  status: number;
+  details?: any;
+}
+
+// Tipos para configuración
+export interface SigoConfig {
+  baseUrl: string;
+  apiKey: string;
+  username?: string;
+  password?: string;
+  timeout: number;
+  retries: number;
+}
+
+export interface WebhookConfig {
+  secret: string;
+  timeout: number;
+  retries: number;
+  backoff: {
+    initial: number;
+    multiplier: number;
+    max: number;
+  };
+}
+
+// Tipos para monitoreo
+export interface HealthCheckResult {
+  status: 'healthy' | 'unhealthy' | 'degraded';
+  timestamp: string;
+  services: {
+    sigo: 'up' | 'down' | 'degraded';
+    database: 'up' | 'down' | 'degraded';
+    webhook: 'up' | 'down' | 'degraded';
+  };
+  response_time_ms: number;
+}
+
+// Tipos para logs
+export interface LogEntry {
+  level: 'error' | 'warn' | 'info' | 'debug';
+  message: string;
+  timestamp: string;
+  service: string;
+  metadata?: Record<string, any>;
+}
+
+// Estados de factura en SIGO
+export type EstadoFactura = 
+  | 'BORRADOR'
   | 'PENDIENTE'
-  | 'ENVIADO'
+  | 'ENVIADO_SUNAT'
   | 'ACEPTADO'
   | 'RECHAZADO'
   | 'ANULADO';
 
-// Tipos para endpoints de la API
-export interface ApiEndpoints {
-  auth: string;
-  clients: string;
-  invoices: string;
-  webhooks?: string;
+// Tipos de documento fiscal
+export type TipoDocumento = 
+  | 'FACTURA_VENTA'
+  | 'BOLETA_VENTA'
+  | 'NOTA_CREDITO'
+  | 'NOTA_DEBITO';
+
+// Tipos de identificación de cliente
+export type TipoIdentificacion = 
+  | 'RUC'
+  | 'DNI'
+  | 'CE'
+  | 'NIT'
+  | 'CC'
+  | 'PASAPORTE';
+
+// Eventos de webhook
+export type WebhookEvent = 
+  | 'pedido.pagado'
+  | 'pedido.cancelado'
+  | 'factura.creada'
+  | 'factura.enviada'
+  | 'factura.anulada';
+
+// Tipos para SIGO Service
+export interface CreateInvoiceData {
+  tipo_documento: string;
+  serie: string;
+  cliente: SigoClient;
+  items: SigoInvoiceItem[];
+  referencia_externa?: any;
 }
 
-// Tipos para health checks
-export interface HealthCheckResult {
-  status: 'healthy' | 'unhealthy';
-  timestamp: string;
-  services: {
-    sigo: boolean;
-    database?: boolean;
-    hubCentral?: boolean;
-  };
-  errors?: string[];
-}
-
-export interface ServiceHealthCheck {
-  service: string;
-  status: 'up' | 'down';
-  responseTime?: number;
-  lastCheck: string;
-  error?: string;
+export interface InvoiceStatus {
+  estado: EstadoFactura;
+  fecha_actualizacion: string;
+  observaciones?: string;
 }
