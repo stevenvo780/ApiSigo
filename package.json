@@ -2,11 +2,17 @@
   "name": "apisigo",
   "version": "1.0.0",
   "description": "API para conectar con SIGO - facturación y gestión de clientes",
-  "main": "src/index.js",
+  "main": "dist/index.js",
   "scripts": {
-    "start": "node src/index.js",
-    "dev": "nodemon src/index.js",
-    "test": "jest"
+    "dev": "ts-node -r tsconfig-paths/register src/index.ts",
+    "build": "tsc && tsc-alias",
+    "start": "node dist/index.js",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "lint": "eslint src/**/*.ts",
+    "lint:fix": "eslint src/**/*.ts --fix",
+    "check-types": "tsc --noEmit"
   },
   "dependencies": {
     "axios": "^1.6.0",
@@ -15,18 +21,33 @@
     "express": "^4.18.2",
     "express-rate-limit": "^7.1.5",
     "express-validator": "^7.0.1",
-    "helmet": "^7.1.0"
+    "helmet": "^7.1.0",
+    "tsconfig-paths": "^4.2.0"
   },
   "devDependencies": {
+    "@types/axios": "^0.9.36",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.3",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^24.2.0",
+    "@typescript-eslint/eslint-plugin": "^6.12.0",
+    "@typescript-eslint/parser": "^6.12.0",
+    "eslint": "^8.54.0",
     "jest": "^29.7.0",
+    "jest-environment-node": "^30.0.5",
     "nodemon": "^3.0.2",
-    "supertest": "^7.1.4"
+    "supertest": "^7.1.4",
+    "ts-jest": "^29.4.1",
+    "ts-node": "^10.9.2",
+    "tsc-alias": "^1.8.8",
+    "typescript": "^5.9.2"
   },
   "keywords": [
     "sigo",
     "api",
     "facturacion",
-    "invoicing"
+    "invoicing",
+    "typescript"
   ],
   "author": "",
   "license": "ISC"

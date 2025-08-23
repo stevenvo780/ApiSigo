@@ -1,8 +1,8 @@
 const webhookService = require('../src/services/webhookService');
 
 describe('Webhook Service', () => {
-  // Crear instancia única para tests
-  const service = new webhookService();
+  // Usar la instancia exportada
+  const service = webhookService;
   
   const mockFacturaData = {
     factura_id: 'FACT-123-20240815',
