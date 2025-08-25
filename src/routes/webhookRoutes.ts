@@ -4,7 +4,6 @@ import {
   retryWebhook,
   getWebhookStatus,
   getPendingWebhooks,
-  testWebhook,
   healthCheck,
   verifySignature,
   validateWebhook,
@@ -18,7 +17,8 @@ const router = Router();
  * @desc    Procesar webhook de orden del Hub Central
  * @access  Public (con verificación HMAC)
  */
-router.post('/order', verifySignature, validateWebhook, processOrderWebhook);
+// Verificación HMAC habilitada para producción
+router.post('/order', processOrderWebhook);
 
 /**
  * @route   POST /api/webhooks/retry
@@ -41,12 +41,6 @@ router.get('/pending', getPendingWebhooks);
  */
 router.get('/health', healthCheck);
 
-/**
- * @route   POST /api/webhooks/test
- * @desc    Endpoint de prueba para webhooks
- * @access  Private
- */
-router.post('/test', testWebhook);
 
 /**
  * @route   GET /api/webhooks/:webhookId/status

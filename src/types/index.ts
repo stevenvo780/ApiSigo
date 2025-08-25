@@ -3,9 +3,11 @@ export interface WebhookOrderData {
   order_id: number;
   store_id?: number;
   customer_id?: number;
+  user_id?: number;
   amount: number; // En centavos
   currency: string;
   items: Array<{
+    id?: string;
     product_id: number;
     product_name: string;
     quantity: number;
@@ -99,6 +101,7 @@ export interface SigoInvoiceItem {
 
 export interface SigoInvoiceSummary {
   subtotal: number;
+  iva: number;
   total_iva: number;
   total_descuentos: number;
   total: number;
@@ -123,6 +126,19 @@ export interface SigoServiceResponse {
   data?: any;
   error?: string;
   status_code?: number;
+}
+
+export interface SigoApiResponse<T = any> {
+  success: boolean;
+  data?: T;
+  error?: string;
+  message?: string;
+  status_code?: number;
+  numero_documento?: string;
+  pdfUrl?: string;
+  pdf_url?: string;
+  xmlUrl?: string;
+  xml_url?: string;
 }
 
 export interface WebhookServiceResponse {
@@ -172,17 +188,25 @@ export interface ApiError {
 // Tipos para configuración
 export interface SigoConfig {
   baseUrl: string;
+  baseURL?: string; // Alias para compatibilidad
   apiKey: string;
   username?: string;
   password?: string;
   timeout: number;
   retries: number;
+  ivaRate?: number;
+  defaultCurrency?: string;
+  defaultSerie?: string;
 }
 
 export interface WebhookConfig {
   secret: string;
   timeout: number;
   retries: number;
+  webhookSecret?: string;
+  hubCentralUrl?: string;
+  maxRetries?: number;
+  retryDelay?: number;
   backoff: {
     initial: number;
     multiplier: number;
@@ -200,6 +224,7 @@ export interface HealthCheckResult {
     webhook: 'up' | 'down' | 'degraded';
   };
   response_time_ms: number;
+  errors?: string[];
 }
 
 // Tipos para logs
@@ -208,6 +233,7 @@ export interface LogEntry {
   message: string;
   timestamp: string;
   service: string;
+  source?: string;
   metadata?: Record<string, any>;
 }
 
@@ -253,8 +279,36 @@ export interface CreateInvoiceData {
   referencia_externa?: any;
 }
 
+export interface UpdateClientData {
+  razonSocial?: string;
+  email?: string;
+  telefono?: string;
+  direccion?: string;
+  ciudad?: string;
+  departamento?: string;
+  codigoPostal?: string;
+  activo?: boolean;
+}
+
 export interface InvoiceStatus {
   estado: EstadoFactura;
   fecha_actualizacion: string;
   observaciones?: string;
+}
+
+// Tipos adicionales para webhooks
+export interface WebhookPayload {
+  event: string;
+  event_type?: string;
+  source?: string;
+  data: any;
+  timestamp: string;
+  signature?: string;
+}
+
+export interface WebhookFacturaCreada {
+  order_id: number;
+  invoice_id: string;
+  status: string;
+  created_at: string;
 }

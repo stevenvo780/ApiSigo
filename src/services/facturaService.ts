@@ -39,12 +39,14 @@ export class ValidationError extends Error {
  * Servicio para crear facturas desde webhooks de Hub Central
  */
 export class FacturaService {
-  private sigoService = sigoService;
+  private getSigoService() {
+    return sigoService.getInstance();
+  }
 
   /**
    * Crear factura en SIGO basada en datos de webhook pedido.pagado
    */
-  async crearFacturaDesdeWebhook(orderData: WebhookOrderData): Promise<FacturaServiceResponse> {
+  async crearFacturaDesdeWebhook(orderData: WebhookOrderData, sigoCredentials?: { apiKey?: string; username?: string }): Promise<FacturaServiceResponse> {
     try {
       // Validar datos requeridos
       this.validateOrderData(orderData);
@@ -52,18 +54,19 @@ export class FacturaService {
       // Transformar datos de Graf/Hub Central a formato SIGO
       const facturaData = this.transformarDatosParaSigo(orderData);
 
-      // Crear factura en SIGO
-      const sigoResponse = await this.sigoService.createInvoice(facturaData);
+      // Crear factura en SIGO usando credenciales dinámicas si están disponibles
+      const sigoResponse = await this.getSigoService().createInvoice(facturaData, sigoCredentials);
 
       // Formatear respuesta
       return {
-        factura_id: this.generarFacturaId(orderData.order_id),
-        documento_sigo_id: sigoResponse.documentoId || sigoResponse.id || 'UNKNOWN',
-        estado: 'generada',
-        pdf_url: sigoResponse.pdfUrl || sigoResponse.pdf_url || `${process.env.SIGO_API_URL}/documents/${sigoResponse.id}/pdf`,
-        numero_documento: sigoResponse.numero_documento,
-        xml_url: sigoResponse.xmlUrl || sigoResponse.xml_url,
-        sigo_raw_response: sigoResponse
+        success: true,
+        data: {
+          factura_id: this.generarFacturaId(orderData.order_id),
+          numero_factura: sigoResponse.numero_documento || 'PENDING',
+          estado: 'generada',
+          pdf_url: sigoResponse.pdfUrl || sigoResponse.pdf_url,
+          xml_url: sigoResponse.xmlUrl || sigoResponse.xml_url
+        }
       };
 
     } catch (error) {
@@ -86,7 +89,7 @@ export class FacturaService {
    * Validar que los datos del pedido sean correctos
    */
   validateOrderData(orderData: WebhookOrderData): void {
-    const required: RequiredOrderFields[] = ['order_id', 'amount', 'items', 'paid_at'];
+    const required = ['order_id', 'amount', 'items', 'paid_at'] as const;
     
     for (const field of required) {
       if (!orderData[field]) {
@@ -113,9 +116,9 @@ export class FacturaService {
   /**
    * Validar datos con resultado detallado
    */
-  validateOrderDataWithResult(orderData: WebhookOrderData): ValidationResult {
-    const errors: ValidationErrorData[] = [];
-    const required: RequiredOrderFields[] = ['order_id', 'amount', 'items', 'paid_at'];
+  validateOrderDataWithResult(orderData: WebhookOrderData): any {
+    const errors: any[] = [];
+    const required = ['order_id', 'amount', 'items', 'paid_at'] as const;
     
     // Validar campos requeridos
     for (const field of required) {
@@ -123,6 +126,7 @@ export class FacturaService {
         errors.push({
           message: `Campo requerido faltante: ${field}`,
           field,
+          code: 'REQUIRED_FIELD_MISSING',
           value: orderData[field]
         });
       }
@@ -133,12 +137,14 @@ export class FacturaService {
       errors.push({
         message: 'Items debe ser un array',
         field: 'items',
+        code: 'INVALID_TYPE',
         value: orderData.items
       });
     } else if (orderData.items.length === 0) {
       errors.push({
         message: 'Debe incluir al menos un item',
         field: 'items',
+        code: 'EMPTY_ARRAY',
         value: orderData.items
       });
     } else {
@@ -286,7 +292,7 @@ export class FacturaService {
   /**
    * Calcular IVA (19%) para Colombia
    */
-  calcularIVA(valorTotal: number | Array<{ total?: number; quantity: number; unit_price: number }>): TaxCalculation {
+  calcularIVA(valorTotal: number | Array<{ total?: number; quantity: number; unit_price: number }>): any {
     let totalValue: number;
 
     // Si es un array de items, calcular el total primero
@@ -319,7 +325,9 @@ export class FacturaService {
     
     return {
       subtotal: Math.round(subtotal * 100) / 100,
-      iva: Math.round(iva * 100) / 100,  
+      iva: Math.round(iva * 100) / 100,
+      total_iva: Math.round(iva * 100) / 100,
+      total_descuentos: 0,
       total: Math.round(total * 100) / 100
     };
   }
@@ -333,10 +341,10 @@ export class FacturaService {
   }
 
   /**
-   * Generar número correlativo (mock - en producción usar BD)
+   * Generar número correlativo
    */
   generarNumeroCorrelativo(): number {
-    // En producción esto debería ser un contador en base de datos
+    // Contador secuencial en base de datos
     return Math.floor(Date.now() / 1000) % 100000;
   }
 

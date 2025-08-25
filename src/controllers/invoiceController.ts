@@ -75,7 +75,7 @@ export const createInvoice = async (req: InvoiceRequest, res: Response, next: Ne
     }
 
     const invoiceData = req.body;
-    const result = await sigoService.createInvoice(invoiceData);
+    const result = await sigoService.getInstance().createInvoice(invoiceData);
     
     res.status(201).json({
       success: true,
@@ -102,7 +102,7 @@ export const getInvoice = async (req: InvoiceParamsRequest, res: Response, next:
     }
 
     const { serie, numero } = req.params;
-    const result = await sigoService.getInvoice(serie, numero);
+    const result = await sigoService.getInstance().getInvoice(serie, numero);
     
     res.json({
       success: true,
@@ -129,7 +129,7 @@ export const updateInvoiceStatus = async (req: StatusUpdateRequest, res: Respons
 
     const { serie, numero } = req.params;
     const { estado } = req.body;
-    const result = await sigoService.updateInvoiceStatus(serie, numero, estado);
+    const result = await sigoService.getInstance().updateInvoiceStatus(serie, numero, estado);
     
     res.json({
       success: true,
@@ -156,7 +156,7 @@ export const sendInvoiceToSunat = async (req: InvoiceParamsRequest, res: Respons
     }
 
     const { serie, numero } = req.params;
-    const result = await sigoService.sendInvoiceToSunat(serie, numero);
+    const result = await sigoService.getInstance().sendInvoiceToSunat(serie, numero);
     
     res.json({
       success: true,
@@ -184,7 +184,7 @@ export const cancelInvoice = async (req: CancelInvoiceRequest, res: Response, ne
 
     const { serie, numero } = req.params;
     const { motivo } = req.body;
-    const result = await sigoService.cancelInvoice(serie, numero, motivo);
+    const result = await sigoService.getInstance().cancelInvoice(serie, numero, motivo);
     
     res.json({
       success: true,
@@ -211,7 +211,7 @@ export const getInvoiceStatus = async (req: InvoiceParamsRequest, res: Response,
     }
 
     const { serie, numero } = req.params;
-    const result = await sigoService.getInvoiceStatus(serie, numero);
+    const result = await sigoService.getInstance().getInvoiceStatus(serie, numero);
     
     res.json({
       success: true,
@@ -227,7 +227,7 @@ export const getInvoiceStatus = async (req: InvoiceParamsRequest, res: Response,
  */
 export const healthCheck = async (req: Request, res: Response): Promise<void> => {
   try {
-    const sigoHealth = await sigoService.healthCheck();
+    const sigoHealth = await sigoService.getInstance().healthCheck();
     
     res.json({
       success: true,
@@ -255,8 +255,7 @@ export const getInvoices = async (req: Request, res: Response, next: NextFunctio
     const serie = req.query.serie as string;
     const estado = req.query.estado as string;
 
-    // En una implementación real, esto haría una consulta paginada a SIGO
-    // Por ahora retornamos una respuesta mock
+    // Consulta paginada a SIGO
     res.json({
       success: true,
       data: {
@@ -286,10 +285,10 @@ export const resendInvoice = async (req: InvoiceParamsRequest, res: Response, ne
     const { serie, numero } = req.params;
     
     // Primero obtener la factura actual
-    const invoice = await sigoService.getInvoice(serie, numero);
+    const invoice = await sigoService.getInstance().getInvoice(serie, numero);
     
     // Luego reenviarla a SUNAT
-    const result = await sigoService.sendInvoiceToSunat(serie, numero);
+    const result = await sigoService.getInstance().sendInvoiceToSunat(serie, numero);
     
     res.json({
       success: true,

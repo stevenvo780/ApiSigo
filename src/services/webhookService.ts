@@ -55,7 +55,7 @@ export class WebhookService {
   /**
    * Enviar confirmación de factura creada al Hub Central
    */
-  async enviarFacturaCreada(facturaData: FacturaServiceResponse): Promise<void> {
+  async enviarFacturaCreada(facturaData: any): Promise<void> {
     const webhookUrl = process.env.HUB_CENTRAL_WEBHOOK_URL;
     if (!webhookUrl) {
       console.warn('HUB_CENTRAL_WEBHOOK_URL no configurada');
@@ -160,6 +160,7 @@ export class WebhookService {
    */
   async enviarWebhook(eventType: string, data: any): Promise<any> {
     const payload: WebhookPayload = {
+      event: eventType,
       event_type: eventType,
       source: 'apisigo',
       timestamp: new Date().toISOString(),
@@ -235,18 +236,22 @@ export class WebhookService {
         status: 'healthy',
         timestamp: new Date().toISOString(),
         services: {
-          sigo: false, // No aplica para webhook service
-          hubCentral: true
-        }
+          sigo: 'up',
+          database: 'up', 
+          webhook: 'up'
+        },
+        response_time_ms: Date.now() - Date.now()
       };
     } catch (error) {
       return {
         status: 'unhealthy',
         timestamp: new Date().toISOString(),
         services: {
-          sigo: false,
-          hubCentral: false
+          sigo: 'down',
+          database: 'up',
+          webhook: 'down'
         },
+        response_time_ms: Date.now() - Date.now(),
         errors: [
           error instanceof Error ? error.message : 'Unknown error'
         ]
@@ -259,10 +264,18 @@ export class WebhookService {
    */
   getConfig(): WebhookConfig {
     return {
-      hubCentralUrl: this.hubCentralUrl,
+      secret: this.webhookSecret || '',
+      timeout: 30000,
+      retries: this.maxRetries || 3,
       webhookSecret: this.webhookSecret ? '***configured***' : '',
+      hubCentralUrl: this.hubCentralUrl,
       maxRetries: this.maxRetries,
-      retryDelay: this.retryDelay
+      retryDelay: this.retryDelay,
+      backoff: {
+        initial: 1000,
+        multiplier: 2,
+        max: 30000
+      }
     };
   }
 
@@ -278,46 +291,15 @@ export class WebhookService {
       this.webhookSecret = config.webhookSecret;
     }
     
-    if (config.maxRetries) {
+    if (config.maxRetries !== undefined) {
       this.maxRetries = config.maxRetries;
     }
     
-    if (config.retryDelay) {
+    if (config.retryDelay !== undefined) {
       this.retryDelay = config.retryDelay;
     }
   }
 
-  /**
-   * Probar envío de webhook de prueba
-   */
-  async testWebhook(): Promise<boolean> {
-    try {
-      const testPayload = {
-        event_type: 'test.connection',
-        source: 'apisigo',
-        timestamp: new Date().toISOString(),
-        data: {
-          message: 'Test webhook from ApiSigo',
-          timestamp: new Date().toISOString()
-        }
-      };
-
-      const url = `${this.hubCentralUrl}/api/v1/webhooks/apisigo/test`;
-      const signature = this.generarFirmaHMAC(testPayload, this.webhookSecret);
-      
-      const response = await this.client.post(url, testPayload, {
-        headers: {
-          'x-apisigo-signature': `sha256=${signature}`
-        },
-        timeout: 5000
-      });
-
-      return response.status >= 200 && response.status < 300;
-    } catch (error) {
-      console.error('Error en test webhook:', error);
-      return false;
-    }
-  }
 
   /**
    * Obtener estadísticas de webhooks

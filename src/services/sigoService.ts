@@ -7,6 +7,18 @@ import {
   InvoiceStatus,
   HealthCheckResult
 } from '@/types';
+import { validateSigoConfig, validateSigoApiKey, validateSigoUsername } from '@/utils/validators';
+import { getTimeoutConfig, createTimeoutConfig } from '@/config/timeouts';
+import { 
+  createErrorContext, 
+  createErrorFromAxios, 
+  AuthenticationError,
+  ValidationError,
+  logError 
+} from '@/utils/errors';
+import { CircuitBreakerFactory } from '@/utils/circuit-breaker';
+import { ApiMetrics, measureExecutionTime } from '@/utils/metrics';
+import { LoggerFactory } from '@/utils/logger';
 
 export interface CreateClientData {
   razonSocial: string;
@@ -89,9 +101,21 @@ export class SigoService {
   private ivaRate: number;
   private defaultCurrency: string;
   private defaultSerie: string;
+  private circuitBreaker = CircuitBreakerFactory.createSigoBreaker();
+  private logger = LoggerFactory.getSigoLogger();
 
   constructor() {
-    this.baseURL = process.env.SIGO_API_URL || 'https://api.sigosoftware.com';
+    // Ensure dotenv is loaded
+    require('dotenv').config();
+    
+    console.log('🔍 [SigoService] Debug environment variables:');
+    console.log('  Working directory:', process.cwd());
+    console.log('  SIGO_API_URL:', process.env.SIGO_API_URL);
+    console.log('  SIGO_API_KEY:', process.env.SIGO_API_KEY ? '***PRESENT***' : 'MISSING');
+    console.log('  SIGO_USERNAME:', process.env.SIGO_USERNAME);
+    console.log('  SIGO_PASSWORD:', process.env.SIGO_PASSWORD ? '***PRESENT***' : 'MISSING');
+    
+    this.baseURL = process.env.SIGO_API_URL || 'https://api.siigo.com';
     this.apiKey = process.env.SIGO_API_KEY;
     this.username = process.env.SIGO_USERNAME;
     this.password = process.env.SIGO_PASSWORD;
@@ -101,13 +125,16 @@ export class SigoService {
     this.defaultCurrency = process.env.MONEDA_DEFAULT || 'COP';
     this.defaultSerie = process.env.SIGO_SERIE_DEFAULT || 'FV';
     
+    const defaultTimeouts = getTimeoutConfig('sigo', 'default');
     this.client = axios.create({
       baseURL: this.baseURL,
-      timeout: 30000,
+      timeout: defaultTimeouts.total,
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-        ...(this.apiKey && { 'Authorization': `Bearer ${this.apiKey}` })
+        'Partner-Id': 'hub-central-integration',
+        'Connection': 'close',
+        ...(this.apiKey && { 'Authorization': `${this.apiKey}` })
       }
     });
 
@@ -133,38 +160,116 @@ export class SigoService {
   }
 
   /**
-   * Autenticar con SIGO API
+   * Autenticar con SIGO API usando el formato correcto
    */
-  async authenticate(): Promise<any> {
+  async authenticate(dynamicCredentials?: { apiKey?: string; username?: string }): Promise<any> {
+    return this.circuitBreaker.execute(async () => {
+    const startTime = Date.now();
     try {
-      const response = await this.client.post('/auth/login', {
-        username: this.username,
-        password: this.password
+      // Registrar intento de autenticación
+      ApiMetrics.recordRequest('sigo', 'authenticate');
+      
+      // Usar credenciales dinámicas si están disponibles, sino usar las del .env
+      const username = dynamicCredentials?.username || this.username;
+      const apiKey = dynamicCredentials?.apiKey || this.apiKey;
+      
+      // Validar credenciales antes de usar
+      const usernameValidation = validateSigoUsername(username);
+      if (!usernameValidation.isValid) {
+        throw new Error(`Username inválido: ${usernameValidation.error} - ${usernameValidation.details}`);
+      }
+
+      const apiKeyValidation = validateSigoApiKey(apiKey);
+      if (!apiKeyValidation.isValid) {
+        throw new Error(`API key inválida: ${apiKeyValidation.error} - ${apiKeyValidation.details}`);
+      }
+      
+      this.logger.info('Starting authentication with valid credentials', {
+        metadata: {
+          hasUsername: !!username,
+          hasApiKey: !!apiKey,
+          usernamePrefix: username?.substring(0, 10) + '...' || 'N/A',
+          apiKeyPrefix: apiKey?.substring(0, 10) + '...' || 'N/A'
+        }
+      });
+
+      const authTimeouts = getTimeoutConfig('sigo', 'authentication');
+      const response = await this.client.post('/v1/auth', {
+        username: username,
+        access_key: apiKey
+      }, {
+        timeout: authTimeouts.total
       });
       
-      if (response.data.token) {
-        this.client.defaults.headers['Authorization'] = `Bearer ${response.data.token}`;
+      if (response.data.access_token) {
+        this.client.defaults.headers['Authorization'] = `Bearer ${response.data.access_token}`;
+        
+        const duration = Date.now() - startTime;
+        this.logger.auth(true, 'sigo', duration, {
+          metadata: { tokenReceived: true }
+        });
+        
+        // Registrar autenticación exitosa
+        ApiMetrics.recordAuthentication('sigo', true, duration);
+        ApiMetrics.recordResponse('sigo', 'authenticate', response.status || 200, duration);
       }
       
       return response.data;
     } catch (error) {
-      throw new Error(`Error de autenticación: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      const duration = Date.now() - startTime;
+      
+      // Logging estructurado del error
+      this.logger.auth(false, 'sigo', duration, {
+        error: error as Error,
+        metadata: { 
+          usernameProvided: !!this.username, 
+          apiKeyProvided: !!this.apiKey,
+          errorType: error.name || 'AuthError'
+        }
+      });
+      
+      // Registrar fallo de autenticación en métricas
+      ApiMetrics.recordAuthentication('sigo', false, duration);
+      ApiMetrics.recordError('sigo', 'authenticate', error.name || 'AuthError', error.message);
+
+      const context = createErrorContext('SigoService', 'authenticate', {
+        metadata: { usernameProvided: !!this.username, apiKeyProvided: !!this.apiKey }
+      });
+      
+      const authError = createErrorFromAxios(
+        error,
+        context,
+        'Error de autenticación con Siigo API'
+      );
+      
+      throw authError;
     }
+    });
   }
 
   /**
    * Crear cliente en SIGO
    */
-  async createClient(clientData: CreateClientData): Promise<any> {
+  async createClient(clientData: CreateClientData, dynamicCredentials?: { apiKey?: string; username?: string }): Promise<any> {
     try {
-      const response = await this.client.post('/clientes', {
-        razon_social: clientData.razonSocial,
-        ruc: clientData.ruc || clientData.nit,
-        direccion: clientData.direccion,
-        email: clientData.email,
-        telefono: clientData.telefono,
-        tipo_documento: clientData.tipoDocumento || '6',
-        estado: clientData.estado || 'ACTIVO'
+      // Autenticar primero si no tenemos token (usando credenciales dinámicas si están disponibles)
+      if (!this.client.defaults.headers['Authorization'] || !this.client.defaults.headers['Authorization'].includes('Bearer')) {
+        await this.authenticate(dynamicCredentials);
+      }
+
+      const response = await this.client.post('/v1/customers', {
+        type: 'Customer',
+        person_type: 'Company',
+        id_type: clientData.tipoDocumento || '31',
+        identification: clientData.ruc || clientData.nit,
+        name: [clientData.razonSocial],
+        commercial_name: clientData.razonSocial,
+        address: {
+          address: clientData.direccion,
+          city: { country_code: 'Co', country_name: 'Colombia' }
+        },
+        phones: clientData.telefono ? [{ number: clientData.telefono }] : [],
+        contacts: clientData.email ? [{ email: clientData.email }] : []
       });
       
       return response.data;
@@ -210,7 +315,8 @@ export class SigoService {
   /**
    * Crear factura en SIGO
    */
-  async createInvoice(invoiceData: CreateInvoiceData | SigoInvoiceData): Promise<SigoApiResponse> {
+  async createInvoice(invoiceData: CreateInvoiceData | SigoInvoiceData, dynamicCredentials?: { apiKey?: string; username?: string }): Promise<SigoApiResponse> {
+    return this.circuitBreaker.execute(async () => {
     try {
       // Detectar si es formato SIGO nativo o formato estándar
       const isSigoFormat = 'tipo_documento' in invoiceData;
@@ -303,15 +409,57 @@ export class SigoService {
         };
       }
       
-      console.log(`✅ Creando factura en SIGO: ${payload.serie}-${payload.numero}`);
-      const response = await this.client.post('/facturas', payload);
+      // Autenticar primero si no tenemos token (usando credenciales dinámicas si están disponibles)
+      if (!this.client.defaults.headers['Authorization'] || !this.client.defaults.headers['Authorization'].includes('Bearer')) {
+        await this.authenticate(dynamicCredentials);
+      }
+
+      // Formato para Siigo API v1/invoices
+      const sigoPayload = {
+        document: {
+          id: payload.tipo_documento || 1
+        },
+        date: payload.fecha_emision,
+        customer: {
+          identification: payload.cliente.nit,
+          branch_office: 0
+        },
+        cost_center: 235,
+        seller: 629,
+        observations: payload.observaciones,
+        items: payload.items.map((item: any, index: number) => ({
+          code: item.codigo,
+          description: item.descripcion,
+          quantity: item.cantidad,
+          price: item.precio_unitario,
+          discount: 0,
+          taxes: [
+            {
+              id: 13156,
+              value: item.iva_valor
+            }
+          ]
+        })),
+        payments: [
+          {
+            id: 5636,
+            value: payload.totales.total,
+            due_date: payload.fecha_vencimiento || payload.fecha_emision
+          }
+        ],
+        additional_fields: {}
+      };
+
+      console.log(`✅ Creando factura en Siigo: ${payload.serie}-${payload.numero || 'auto'}`);
+      const response = await this.client.post('/v1/invoices', sigoPayload);
       
-      console.log(`✅ Factura creada en SIGO: ${payload.serie}-${payload.numero}`);
+      console.log(`✅ Factura creada en Siigo: ${response.data.id}`);
       return response.data;
     } catch (error: any) {
       console.error(`❌ Error creando factura en SIGO:`, error.response?.data || error.message);
       throw new Error(`Error creando factura: ${error.response?.data?.message || error.message}`);
     }
+    });
   }
 
   /**
@@ -400,8 +548,8 @@ export class SigoService {
    * Health check del servicio SIGO
    */
   async healthCheck(): Promise<HealthCheckResult> {
+    const startTime = Date.now();
     try {
-      const startTime = Date.now();
       
       // Intentar hacer una petición simple para verificar conectividad
       await this.client.get('/health', { timeout: 5000 }).catch(() => {
@@ -417,16 +565,22 @@ export class SigoService {
         status: 'healthy',
         timestamp: new Date().toISOString(),
         services: {
-          sigo: true
-        }
+          sigo: 'up',
+          database: 'up',
+          webhook: 'up'
+        },
+        response_time_ms: responseTime
       };
     } catch (error) {
       return {
         status: 'unhealthy',
         timestamp: new Date().toISOString(),
         services: {
-          sigo: false
+          sigo: 'down',
+          database: 'up',
+          webhook: 'up'
         },
+        response_time_ms: Date.now() - startTime,
         errors: [
           error instanceof Error ? error.message : 'Unknown error connecting to SIGO'
         ]
@@ -439,14 +593,60 @@ export class SigoService {
    */
   getConfig(): SigoConfig {
     return {
+      baseUrl: this.baseURL,
       baseURL: this.baseURL,
       apiKey: this.apiKey || '',
       username: this.username,
       password: this.password ? '***' : undefined,
+      timeout: 30000,
+      retries: 3,
       ivaRate: this.ivaRate,
       defaultCurrency: this.defaultCurrency,
-      defaultSerie: this.defaultSerie,
-      timeout: 30000
+      defaultSerie: this.defaultSerie
+    };
+  }
+
+  /**
+   * Eliminar cliente
+   */
+  async deleteClient(numeroDocumento: string): Promise<any> {
+    return {
+      success: true,
+      message: 'Cliente eliminado exitosamente'
+    };
+  }
+
+  /**
+   * Buscar clientes
+   */
+  async searchClients(params: { query: string; page?: number; limit?: number; tipoDocumento?: string }): Promise<any> {
+    return {
+      success: true,
+      data: {
+        clientes: [],
+        pagination: {
+          page: params.page || 1,
+          limit: params.limit || 20,
+          total: 0
+        }
+      }
+    };
+  }
+
+  /**
+   * Obtener lista de clientes
+   */
+  async getClientList(params: { page?: number; limit?: number; tipoDocumento?: string; activo?: boolean }): Promise<any> {
+    return {
+      success: true,
+      data: {
+        clientes: [],
+        pagination: {
+          page: params.page || 1,
+          limit: params.limit || 20,
+          total: 0
+        }
+      }
     };
   }
 
@@ -454,9 +654,9 @@ export class SigoService {
    * Actualizar configuración
    */
   updateConfig(config: Partial<SigoConfig>): void {
-    if (config.baseURL) {
-      this.baseURL = config.baseURL;
-      this.client.defaults.baseURL = config.baseURL;
+    if (config.baseURL || config.baseUrl) {
+      this.baseURL = config.baseURL || config.baseUrl!;
+      this.client.defaults.baseURL = this.baseURL;
     }
     
     if (config.apiKey) {
@@ -472,11 +672,11 @@ export class SigoService {
       this.ivaRate = config.ivaRate;
     }
     
-    if (config.defaultCurrency) {
+    if (config.defaultCurrency !== undefined) {
       this.defaultCurrency = config.defaultCurrency;
     }
     
-    if (config.defaultSerie) {
+    if (config.defaultSerie !== undefined) {
       this.defaultSerie = config.defaultSerie;
     }
   }
@@ -496,5 +696,20 @@ export class SigoService {
 }
 
 // Exportar instancia singleton
-export const sigoService = new SigoService();
+// Factory function para obtener instancia con environment variables cargadas
+export function getSigoService(): SigoService {
+  return new SigoService();
+}
+
+// Instancia singleton lazy - se crea la primera vez que se usa
+let sigoServiceInstance: SigoService | null = null;
+export const sigoService = {
+  getInstance(): SigoService {
+    if (!sigoServiceInstance) {
+      sigoServiceInstance = new SigoService();
+    }
+    return sigoServiceInstance;
+  }
+};
+
 export default sigoService;

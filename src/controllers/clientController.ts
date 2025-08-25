@@ -55,7 +55,7 @@ export const createClient = async (req: ClientRequest, res: Response, next: Next
     }
 
     const clientData = req.body;
-    const result = await sigoService.createClient(clientData);
+    const result = await sigoService.getInstance().createClient(clientData);
     
     res.status(201).json({
       success: true,
@@ -82,7 +82,7 @@ export const getClient = async (req: ClientParamsRequest, res: Response, next: N
     }
 
     const { tipoDocumento, numeroDocumento } = req.params;
-    const result = await sigoService.getClient(tipoDocumento, numeroDocumento);
+    const result = await sigoService.getInstance().getClient(numeroDocumento);
     
     res.json({
       success: true,
@@ -109,7 +109,7 @@ export const updateClient = async (req: UpdateClientRequest, res: Response, next
 
     const { tipoDocumento, numeroDocumento } = req.params;
     const updateData = req.body;
-    const result = await sigoService.updateClient(tipoDocumento, numeroDocumento, updateData);
+    const result = await sigoService.getInstance().updateClient(numeroDocumento, updateData);
     
     res.json({
       success: true,
@@ -136,7 +136,7 @@ export const deleteClient = async (req: ClientParamsRequest, res: Response, next
     }
 
     const { tipoDocumento, numeroDocumento } = req.params;
-    const result = await sigoService.deleteClient(tipoDocumento, numeroDocumento);
+    const result = await sigoService.getInstance().deleteClient(numeroDocumento);
     
     res.json({
       success: true,
@@ -165,7 +165,8 @@ export const searchClients = async (req: Request, res: Response, next: NextFunct
       return;
     }
 
-    const result = await sigoService.searchClients(query, {
+    const result = await sigoService.getInstance().searchClients({
+      query,
       page,
       limit,
       tipoDocumento
@@ -190,7 +191,7 @@ export const getClients = async (req: Request, res: Response, next: NextFunction
     const tipoDocumento = req.query.tipoDocumento as string;
     const activo = req.query.activo === 'true';
 
-    const result = await sigoService.getClients({
+    const result = await sigoService.getInstance().getClientList({
       page,
       limit,
       tipoDocumento,
@@ -223,7 +224,7 @@ export const toggleClientStatus = async (req: ClientParamsRequest, res: Response
     const { tipoDocumento, numeroDocumento } = req.params;
     const { activo } = req.body;
 
-    const result = await sigoService.updateClient(tipoDocumento, numeroDocumento, { activo });
+    const result = await sigoService.getInstance().updateClient(numeroDocumento, { activo: activo } as any);
     
     res.json({
       success: true,
@@ -297,7 +298,7 @@ export const validateClientDocument = async (req: Request, res: Response, next: 
  */
 export const healthCheck = async (req: Request, res: Response): Promise<void> => {
   try {
-    const sigoHealth = await sigoService.healthCheck();
+    const sigoHealth = await sigoService.getInstance().healthCheck();
     
     res.json({
       success: true,
