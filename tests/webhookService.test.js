@@ -19,7 +19,7 @@ describe('Webhook Service', () => {
 
   beforeAll(() => {
     process.env.HUB_CENTRAL_URL = 'http://localhost:3007';
-    process.env.APISIGO_WEBHOOK_SECRET = 'test_secret';
+    process.env.APISIGO_WEBHOOK_SECRET = process.env.APISIGO_WEBHOOK_SECRET || 'test_secret';
   });
 
   beforeEach(() => {

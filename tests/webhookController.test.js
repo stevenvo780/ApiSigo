@@ -47,9 +47,9 @@ describe('Webhook Controller - POST /api/facturas', () => {
 
   beforeAll(() => {
     // Configurar variables de entorno para tests
-    process.env.HUB_WEBHOOK_SECRET = 'test_secret';
+    process.env.HUB_WEBHOOK_SECRET = process.env.HUB_WEBHOOK_SECRET || 'test_secret';
     process.env.HUB_CENTRAL_URL = 'http://localhost:3007';
-    process.env.APISIGO_WEBHOOK_SECRET = 'apisigo_test_secret';
+    process.env.APISIGO_WEBHOOK_SECRET = process.env.APISIGO_WEBHOOK_SECRET || 'apisigo_test_secret';
     process.env.SIGO_API_URL = 'https://api.sigo.com';
     process.env.SIGO_SERIE_DEFAULT = 'F001';
     process.env.SIGO_RUC_GENERICO = '20000000001';

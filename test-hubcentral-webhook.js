@@ -54,7 +54,7 @@ async function testHubCentralWebhook() {
         
         // Crear firma HMAC como lo hace el plugin service
         const crypto = require('crypto');
-        const hubSecret = 'your_hub_central_secret_key'; // Mismo valor del .env
+        const hubSecret = process.env.HUB_CENTRAL_SECRET || 'default-test-secret'; // Usar variable de entorno
         const signature = crypto
             .createHmac('sha256', hubSecret)
             .update(JSON.stringify(testPayload))
