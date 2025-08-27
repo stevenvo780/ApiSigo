@@ -3,7 +3,7 @@ import { body, param, validationResult } from "express-validator";
 import { sigoService } from "@/services/sigoService";
 import { CreateClientData } from "@/services/sigoService";
 
-// Validaciones para crear cliente
+
 export const validateClient = [
   body("tipoDocumento")
     .isIn(["RUC", "DNI", "CE", "NIT", "CC"])
@@ -39,7 +39,7 @@ export const validateClient = [
     .withMessage("Código postal no debe exceder 10 caracteres"),
 ];
 
-// Validaciones para parámetros de cliente
+
 export const validateClientParams = [
   param("tipoDocumento")
     .isIn(["RUC", "DNI", "CE", "NIT", "CC"])
@@ -312,7 +312,7 @@ export const validateClientDocument = async (
       return;
     }
 
-    // Validar formato según tipo de documento
+
     let isValid = false;
     let mensaje = "";
 

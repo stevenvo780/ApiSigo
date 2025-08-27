@@ -2,12 +2,12 @@ import express, { Express } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 
-// Rutas
+
 import invoiceRoutes from '@/routes/invoiceRoutes';
 import clientRoutes from '@/routes/clientRoutes';
 import webhookRoutes from '@/routes/webhookRoutes';
 
-// Middleware
+
 import { 
   errorHandler, 
   notFound, 
@@ -15,13 +15,13 @@ import {
   validateJson 
 } from '@/middleware/errorHandler';
 
-// Cargar variables de entorno
+
 dotenv.config();
 
 const app: Express = express();
 const PORT = process.env.PORT || 3000;
 
-// CORS
+
 app.use(cors({
   origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'],
   credentials: true,
@@ -36,22 +36,22 @@ app.use(cors({
   ]
 }));
 
-// Body parsing
+
 app.use(express.json({ 
   limit: '10mb',
   verify: (req: any, res, buf) => {
-    // Guardar raw body para verificación de webhooks
+
     req.rawBody = buf;
   }
 }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Middleware de logging
+
 if (process.env.NODE_ENV !== 'test') {
   app.use(requestLogger);
 }
 
-// Health check básico
+
 app.get('/health', (req, res) => {
   res.json({
     success: true,
@@ -63,7 +63,7 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Información de la API
+
 app.get('/api', (req, res) => {
   res.json({
     success: true,
@@ -82,12 +82,12 @@ app.get('/api', (req, res) => {
   });
 });
 
-// Rutas de la API
+
 app.use('/api/invoices', invoiceRoutes);
 app.use('/api/clients', clientRoutes);
 app.use('/api/webhooks', webhookRoutes);
 
-// Documentación simple de la API
+
 app.get('/api/docs', (req, res) => {
   res.json({
     success: true,
@@ -140,29 +140,29 @@ app.get('/api/docs', (req, res) => {
   });
 });
 
-// Middleware para rutas no encontradas
+
 app.use(notFound);
 
-// Middleware para validar JSON (error handler)
+
 app.use(validateJson);
 
-// Middleware de manejo de errores (debe ser el último)
+
 app.use(errorHandler);
 
-// Manejo de errores no capturados
+
 process.on('uncaughtException', (error: Error) => {
   console.error('Uncaught Exception:', error);
-  // Graceful shutdown
+
   process.exit(1);
 });
 
 process.on('unhandledRejection', (reason: any, promise: Promise<any>) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason);
-  // Graceful shutdown
+
   process.exit(1);
 });
 
-// Solo iniciar el servidor si no estamos en modo test
+
 if (process.env.NODE_ENV !== 'test') {
   const server = app.listen(PORT, () => {
     console.log(`
@@ -175,7 +175,7 @@ if (process.env.NODE_ENV !== 'test') {
     `);
   });
 
-  // Graceful shutdown
+
   process.on('SIGTERM', () => {
     console.log('SIGTERM signal received: closing HTTP server');
     server.close(() => {

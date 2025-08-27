@@ -3,7 +3,7 @@ import { sigoService } from '@/services/sigoService';
 import { webhookService } from '@/services/webhookService';
 import { WebhookOrderData, FacturaServiceResponse } from '@/types';
 
-// Mock de sigoService
+
 jest.mock('@/services/sigoService', () => ({
   sigoService: {
     createInvoice: jest.fn(),
@@ -12,7 +12,7 @@ jest.mock('@/services/sigoService', () => ({
   }
 }));
 
-// Mock de webhookService
+
 jest.mock('@/services/webhookService', () => ({
   webhookService: {
     enviarFacturaCreada: jest.fn(),
@@ -123,7 +123,7 @@ describe('FacturaService', () => {
         ...mockWebhookData,
         customer: {
           ...mockWebhookData.customer,
-          numeroDocumento: '' // documento vacío
+          numeroDocumento: ''
         }
       };
 
@@ -138,7 +138,7 @@ describe('FacturaService', () => {
       const testCases = [
         { base: 100, expectedIva: 19 },
         { base: 200, expectedIva: 38 },
-        { base: 50.5, expectedIva: 9.6 } // Redondeado a 2 decimales
+        { base: 50.5, expectedIva: 9.6 }
       ];
 
       testCases.forEach(testCase => {
@@ -244,13 +244,13 @@ describe('FacturaService', () => {
 
     it('debería detectar errores de validación', () => {
       const invalidData = {
-        // Datos inválidos intencionalmente
-        total: -100, // Total negativo
+
+        total: -100,
         customer: {
-          tipoDocumento: 'INVALID', // Tipo de documento inválido
-          numeroDocumento: '' // Documento vacío
+          tipoDocumento: 'INVALID',
+          numeroDocumento: ''
         },
-        items: [] // Sin items
+        items: []
       } as any;
 
       const errors = facturaService.validateOrderData(invalidData);

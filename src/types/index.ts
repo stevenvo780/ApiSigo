@@ -1,18 +1,18 @@
-// Tipos para el webhook de orden pagada (estructura real de Graf/Hub Central)
+
 export interface WebhookOrderData {
   order_id: number;
   store_id?: number;
   customer_id?: number;
   user_id?: number;
-  amount: number; // En centavos
+  amount: number;
   currency: string;
   items: Array<{
     id?: string;
     product_id: number;
     product_name: string;
     quantity: number;
-    unit_price: number; // En centavos
-    total: number; // En centavos
+    unit_price: number;
+    total: number;
   }>;
   paid_at: string;
   customer_name?: string;
@@ -25,7 +25,7 @@ export interface WebhookOrderData {
   };
 }
 
-// Interfaces auxiliares simplificadas (compatibles con la estructura real)
+
 export interface Customer {
   id?: number;
   tipoDocumento: "RUC" | "DNI" | "CE" | "NIT" | "CC";
@@ -50,8 +50,8 @@ export interface OrderItem {
   product_id: number;
   product_name: string;
   quantity: number;
-  unit_price: number; // En centavos
-  total: number; // En centavos
+  unit_price: number;
+  total: number;
 }
 
 export interface Discount {
@@ -60,7 +60,7 @@ export interface Discount {
   descripcion?: string;
 }
 
-// Tipos para datos transformados a SIGO
+
 export interface SigoInvoiceData {
   tipo_documento: string;
   serie: string;
@@ -107,7 +107,7 @@ export interface SigoInvoiceSummary {
   total: number;
 }
 
-// Tipos para respuestas de servicios
+
 export interface FacturaServiceResponse {
   success: boolean;
   data?: {
@@ -148,7 +148,7 @@ export interface WebhookServiceResponse {
   error?: string;
 }
 
-// Tipos adicionales necesarios para el proyecto
+
 export interface TaxCalculation {
   subtotal: number;
   iva: number;
@@ -171,7 +171,7 @@ export interface ValidationResult {
 
 export type RequiredOrderFields = "order_id" | "amount" | "items" | "paid_at";
 
-// Tipos para validación
+
 export interface ValidationError {
   field: string;
   message: string;
@@ -185,10 +185,10 @@ export interface ApiError {
   details?: any;
 }
 
-// Tipos para configuración
+
 export interface SigoConfig {
   baseUrl: string;
-  baseURL?: string; // Alias para compatibilidad
+  baseURL?: string;
   apiKey: string;
   username?: string;
   password?: string;
@@ -214,7 +214,7 @@ export interface WebhookConfig {
   };
 }
 
-// Tipos para monitoreo
+
 export interface HealthCheckResult {
   status: "healthy" | "unhealthy" | "degraded";
   timestamp: string;
@@ -227,7 +227,7 @@ export interface HealthCheckResult {
   errors?: string[];
 }
 
-// Tipos para logs
+
 export interface LogEntry {
   level: "error" | "warn" | "info" | "debug";
   message: string;
@@ -237,7 +237,7 @@ export interface LogEntry {
   metadata?: Record<string, any>;
 }
 
-// Estados de factura en SIGO
+
 export type EstadoFactura =
   | "BORRADOR"
   | "PENDIENTE"
@@ -246,14 +246,14 @@ export type EstadoFactura =
   | "RECHAZADO"
   | "ANULADO";
 
-// Tipos de documento fiscal
+
 export type TipoDocumento =
   | "FACTURA_VENTA"
   | "BOLETA_VENTA"
   | "NOTA_CREDITO"
   | "NOTA_DEBITO";
 
-// Tipos de identificación de cliente
+
 export type TipoIdentificacion =
   | "RUC"
   | "DNI"
@@ -262,7 +262,7 @@ export type TipoIdentificacion =
   | "CC"
   | "PASAPORTE";
 
-// Eventos de webhook
+
 export type WebhookEvent =
   | "pedido.pagado"
   | "pedido.cancelado"
@@ -270,7 +270,7 @@ export type WebhookEvent =
   | "factura.enviada"
   | "factura.anulada";
 
-// Tipos para SIGO Service
+
 export interface CreateInvoiceData {
   tipo_documento: string;
   serie: string;
@@ -296,7 +296,7 @@ export interface InvoiceStatus {
   observaciones?: string;
 }
 
-// Tipos adicionales para webhooks
+
 export interface WebhookPayload {
   event: string;
   event_type?: string;

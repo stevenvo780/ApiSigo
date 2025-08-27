@@ -1,202 +1,95 @@
-# API SIGO
+# ApiSigo
 
-API para conectar con SIGO - Sistema de facturación electrónica y gestión de clientes.
+Servicio de facturación e integración SIGO (Colombia) usado por Hub Central.
 
 ## Características
 
-- ✅ Gestión de clientes (crear, obtener, actualizar)
-- ✅ Creación y gestión de facturas
-- ✅ Cambio de estados de facturas
-- ✅ Envío de facturas a SUNAT
-- ✅ Anulación de facturas
-- ✅ Validación de datos
-- ✅ Manejo de errores
-- ✅ Rate limiting
-- ✅ Seguridad con Helmet
+- Gestión de clientes (crear, listar, buscar, actualizar, activar/desactivar)
+- Facturación: crear, enviar/reintentar, estado, anulación
+- Webhooks de orden desde HubCentral/Graf con verificación HMAC (`X-Hub-Signature-256`)
+- Validación, rate limiting, CORS y manejo de errores
 
-## Instalación
+## Instalación y uso
 
 ```bash
+cd ApiSigo
 npm install
-```
+cp .env.example .env   # configura credenciales SIGO y secretos
 
-## Configuración
-
-1. Copia el archivo `.env.example` a `.env`:
-```bash
-cp .env.example .env
-```
-
-2. Configura las variables de entorno en `.env`:
-```
-PORT=3000
-SIGO_API_URL=https://api.sigo.com
-SIGO_API_KEY=tu_api_key_de_sigo
-SIGO_USERNAME=tu_usuario_sigo
-SIGO_PASSWORD=tu_password_sigo
-```
-
-## Uso
-
-### Desarrollo
-```bash
+# Desarrollo
 npm run dev
+
+# Producción
+npm run build && npm start
 ```
 
-### Producción
-```bash
-npm start
-```
+Puerto por defecto: `3004` (configurable vía `PORT`).
+
+## Configuración (.env)
+
+Variables principales (ver `.env.example`):
+- `SIGO_API_URL`, `SIGO_API_KEY`, `SIGO_USERNAME`, `SIGO_PASSWORD`
+- `APISIGO_WEBHOOK_SECRET` o `HUB_WEBHOOK_SECRET` para HMAC
+- `ALLOWED_ORIGINS` para CORS (opcional)
 
 ## Endpoints
 
+Base: `http://localhost:3004`
+
 ### Clientes
-
-#### Crear Cliente
-```http
-POST /api/clients
-Content-Type: application/json
-
-{
-  "razonSocial": "EMPRESA EJEMPLO SAC",
-  "ruc": "20123456789",
-  "direccion": "Av. Ejemplo 123, Lima",
-  "email": "contacto@ejemplo.com",
-  "telefono": "987654321",
-  "tipoDocumento": "6",
-  "estado": "ACTIVO"
-}
-```
-
-#### Obtener Cliente
-```http
-GET /api/clients/{ruc}
-```
-
-#### Actualizar Cliente
-```http
-PUT /api/clients/{ruc}
-Content-Type: application/json
-
-{
-  "razonSocial": "EMPRESA EJEMPLO SAC",
-  "direccion": "Nueva dirección",
-  "email": "nuevo@ejemplo.com",
-  "telefono": "987654321",
-  "estado": "ACTIVO"
-}
-```
+- `POST /api/clients` → Crear cliente
+- `GET /api/clients` → Listar con paginación
+- `GET /api/clients/search` → Buscar por término
+- `GET /api/clients/validate` → Validar documento
+- `GET /api/clients/health` → Health del módulo
+- `GET /api/clients/:tipoDocumento/:numeroDocumento` → Obtener
+- `PUT /api/clients/:tipoDocumento/:numeroDocumento` → Actualizar
+- `DELETE /api/clients/:tipoDocumento/:numeroDocumento` → Eliminar
+- `PATCH /api/clients/:tipoDocumento/:numeroDocumento/toggle-status` → Activar/Desactivar
 
 ### Facturas
+- `POST /api/invoices` → Crear factura
+- `GET /api/invoices` → Listar con paginación
+- `GET /api/invoices/health` → Health del módulo
+- `GET /api/invoices/:serie/:numero` → Obtener
+- `PUT /api/invoices/:serie/:numero/status` → Actualizar estado
+- `GET /api/invoices/:serie/:numero/status` → Estado actual
+- `POST /api/invoices/:serie/:numero/send` → Enviar a DIAN/SUNAT según país
+- `POST /api/invoices/:serie/:numero/resend` → Reenviar
+- `POST /api/invoices/:serie/:numero/cancel` → Anular
 
-#### Crear Factura
-```http
-POST /api/invoices
-Content-Type: application/json
+### Webhooks
+- `POST /api/webhooks/order` → Procesar orden
+  - Headers: `X-Hub-Signature-256: sha256=<hex>`, opcional `X-API-KEY`
+  - El cuerpo debe firmarse con HMAC‑SHA256 usando `APISIGO_WEBHOOK_SECRET` (o `HUB_WEBHOOK_SECRET`)
+- `POST /api/webhooks/retry` → Reintentar webhook fallido
+- `GET /api/webhooks/pending` → Listar pendientes
+- `GET /api/webhooks/:webhookId/status` → Estado
+- `GET /api/webhooks/health` → Health del módulo
 
-{
-  "serie": "F001",
-  "numero": 1,
-  "fechaEmision": "2024-01-15",
-  "fechaVencimiento": "2024-02-15",
-  "moneda": "PEN",
-  "cliente": {
-    "ruc": "20123456789",
-    "razonSocial": "EMPRESA CLIENTE SAC",
-    "direccion": "Av. Cliente 456, Lima"
-  },
-  "items": [
-    {
-      "codigo": "PROD001",
-      "descripcion": "Producto de ejemplo",
-      "cantidad": 2,
-      "precioUnitario": 100.00,
-      "valorUnitario": 84.75,
-      "igv": 15.25,
-      "total": 200.00
-    }
-  ],
-  "totales": {
-    "subtotal": 169.50,
-    "igv": 30.50,
-    "total": 200.00
-  }
-}
-```
+## Estados de Factura (referencia)
 
-#### Obtener Factura
-```http
-GET /api/invoices/{serie}/{numero}
-```
+- `PENDIENTE` → creada
+- `ENVIADO` → enviada a autoridad fiscal (DIAN/SUNAT)
+- `ACEPTADO` | `APROBADO` → aceptada
+- `RECHAZADO` → rechazada
+- `ANULADO` → anulada
 
-#### Actualizar Estado de Factura
-```http
-PATCH /api/invoices/{serie}/{numero}/status
-Content-Type: application/json
+## Respuestas tipo
 
-{
-  "estado": "ENVIADO"
-}
-```
-
-#### Enviar Factura a SUNAT
-```http
-POST /api/invoices/{serie}/{numero}/send-sunat
-```
-
-#### Anular Factura
-```http
-POST /api/invoices/{serie}/{numero}/cancel
-Content-Type: application/json
-
-{
-  "motivo": "Error en los datos del cliente"
-}
-```
-
-#### Obtener Estado de Factura
-```http
-GET /api/invoices/{serie}/{numero}/status
-```
-
-## Estados de Factura
-
-- `PENDIENTE`: Factura creada pero no enviada
-- `ENVIADO`: Factura enviada a SUNAT
-- `ACEPTADO`: Factura aceptada por SUNAT
-- `RECHAZADO`: Factura rechazada por SUNAT  
-- `ANULADO`: Factura anulada
-
-## Respuestas de la API
-
-### Éxito
+Éxito
 ```json
-{
-  "success": true,
-  "message": "Operación exitosa",
-  "data": { ... }
-}
+{ "success": true, "message": "OK", "data": { } }
 ```
 
-### Error
+Error
 ```json
-{
-  "error": "Tipo de error",
-  "message": "Descripción del error",
-  "details": { ... }
-}
+{ "error": "BadRequest", "message": "Descripción", "details": { } }
 ```
 
-## Health Check
+## Health
 
-```http
-GET /health
-```
+- `GET /health` → estado del servicio
+- `GET /api` → metadatos y rutas disponibles
 
-Respuesta:
-```json
-{
-  "status": "OK",
-  "message": "API SIGO funcionando correctamente"
-}
-```# SigoApi
+Documentación JSON rápida: `GET /api/docs`

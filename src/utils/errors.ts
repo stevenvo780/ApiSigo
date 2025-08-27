@@ -37,7 +37,7 @@ export class IntegrationError extends Error {
     this.context = context;
     this.retryable = options.retryable ?? false;
 
-    // Mantener el stack trace del error original si existe
+
     if (options.originalError && options.originalError.stack) {
       this.stack = options.originalError.stack;
     }
@@ -75,7 +75,7 @@ export class AuthenticationError extends IntegrationError {
     super(message, context, {
       statusCode: 401,
       originalError,
-      retryable: true, // Los errores de auth pueden ser temporales
+      retryable: true,
     });
   }
 }
@@ -96,7 +96,7 @@ export class ValidationError extends IntegrationError {
     super(message, context, {
       statusCode: 400,
       originalError,
-      retryable: false, // Los errores de validación no son reintentables
+      retryable: false,
     });
     this.field = field;
   }
@@ -151,7 +151,7 @@ export class TimeoutError extends IntegrationError {
   ) {
     super(message, context, {
       originalError,
-      retryable: true, // Los timeouts son reintentables
+      retryable: true,
     });
     this.timeoutMs = timeoutMs;
   }

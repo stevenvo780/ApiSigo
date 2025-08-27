@@ -24,7 +24,7 @@ export const errorHandler = (
     timestamp: new Date().toISOString(),
   });
 
-  // Error de validación
+
   if (error.name === "ValidationError") {
     res.status(400).json({
       success: false,
@@ -34,7 +34,7 @@ export const errorHandler = (
     return;
   }
 
-  // Error de autenticación
+
   if (error.name === "UnauthorizedError" || error.statusCode === 401) {
     res.status(401).json({
       success: false,
@@ -44,7 +44,7 @@ export const errorHandler = (
     return;
   }
 
-  // Error de permisos
+
   if (error.statusCode === 403) {
     res.status(403).json({
       success: false,
@@ -54,7 +54,7 @@ export const errorHandler = (
     return;
   }
 
-  // Error de recurso no encontrado
+
   if (error.statusCode === 404) {
     res.status(404).json({
       success: false,
@@ -64,7 +64,7 @@ export const errorHandler = (
     return;
   }
 
-  // Error de conflicto
+
   if (error.statusCode === 409) {
     res.status(409).json({
       success: false,
@@ -74,7 +74,7 @@ export const errorHandler = (
     return;
   }
 
-  // Error de rate limiting
+
   if (error.statusCode === 429) {
     res.status(429).json({
       success: false,
@@ -84,7 +84,7 @@ export const errorHandler = (
     return;
   }
 
-  // Errores específicos de SIGO
+
   if (error.code === "SIGO_API_ERROR") {
     res.status(502).json({
       success: false,
@@ -95,7 +95,7 @@ export const errorHandler = (
     return;
   }
 
-  // Errores de timeout
+
   if (error.code === "ECONNABORTED" || error.message.includes("timeout")) {
     res.status(504).json({
       success: false,
@@ -105,7 +105,7 @@ export const errorHandler = (
     return;
   }
 
-  // Errores de conexión
+
   if (error.code === "ECONNREFUSED" || error.code === "ENOTFOUND") {
     res.status(503).json({
       success: false,
@@ -115,7 +115,7 @@ export const errorHandler = (
     return;
   }
 
-  // Error interno del servidor (default)
+
   const statusCode = error.statusCode || 500;
   res.status(statusCode).json({
     success: false,

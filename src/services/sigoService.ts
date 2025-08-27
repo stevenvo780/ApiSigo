@@ -112,8 +112,8 @@ export class SigoService {
   private logger = LoggerFactory.getSigoLogger();
 
   constructor() {
-    // Ensure dotenv is loaded
-    // dotenv.config() moved to top-level import
+
+
 
     console.log("🔍 [SigoService] Debug environment variables:");
     console.log("  Working directory:", process.cwd());
@@ -133,7 +133,7 @@ export class SigoService {
     this.username = process.env.SIGO_USERNAME;
     this.password = process.env.SIGO_PASSWORD;
 
-    // Configuraciones específicas de Colombia
+
     this.ivaRate = parseFloat(process.env.IVA_COLOMBIA || "19");
     this.defaultCurrency = process.env.MONEDA_DEFAULT || "COP";
     this.defaultSerie = process.env.SIGO_SERIE_DEFAULT || "FV";
@@ -182,14 +182,14 @@ export class SigoService {
     return this.circuitBreaker.execute(async () => {
       const startTime = Date.now();
       try {
-        // Registrar intento de autenticación
+
         ApiMetrics.recordRequest("sigo", "authenticate");
 
-        // Usar credenciales dinámicas si están disponibles, sino usar las del .env
+
         const username = dynamicCredentials?.username || this.username;
         const apiKey = dynamicCredentials?.apiKey || this.apiKey;
 
-        // Validar credenciales antes de usar
+
         const usernameValidation = validateSigoUsername(username);
         if (!usernameValidation.isValid) {
           throw new Error(
@@ -234,7 +234,7 @@ export class SigoService {
             metadata: { tokenReceived: true },
           });
 
-          // Registrar autenticación exitosa
+
           ApiMetrics.recordAuthentication("sigo", true, duration);
           ApiMetrics.recordResponse(
             "sigo",
@@ -248,7 +248,7 @@ export class SigoService {
       } catch (error) {
         const duration = Date.now() - startTime;
 
-        // Logging estructurado del error
+
         this.logger.auth(false, "sigo", duration, {
           error: error as Error,
           metadata: {
@@ -258,7 +258,7 @@ export class SigoService {
           },
         });
 
-        // Registrar fallo de autenticación en métricas
+
         ApiMetrics.recordAuthentication("sigo", false, duration);
         ApiMetrics.recordError(
           "sigo",
@@ -293,7 +293,7 @@ export class SigoService {
     dynamicCredentials?: { apiKey?: string; username?: string },
   ): Promise<any> {
     try {
-      // Autenticar primero si no tenemos token (usando credenciales dinámicas si están disponibles)
+
       if (
         !this.client.defaults.headers["Authorization"] ||
         !this.client.defaults.headers["Authorization"].includes("Bearer")
@@ -365,13 +365,13 @@ export class SigoService {
   ): Promise<SigoApiResponse> {
     return this.circuitBreaker.execute(async () => {
       try {
-        // Detectar si es formato SIGO nativo o formato estándar
+
         const isSigoFormat = "tipo_documento" in invoiceData;
 
         let payload: any;
 
         if (isSigoFormat) {
-          // Formato SIGO nativo
+
           const sigoData = invoiceData as SigoInvoiceData;
           payload = {
             tipo_documento:
@@ -415,10 +415,10 @@ export class SigoService {
             },
           };
         } else {
-          // Formato estándar
+
           const stdData = invoiceData as CreateInvoiceData;
 
-          // Calcular totales con IVA colombiano si no están presentes
+
           const subtotal =
             stdData.totales?.subtotal || this.calculateSubtotal(stdData.items);
           const iva =
@@ -483,7 +483,7 @@ export class SigoService {
           };
         }
 
-        // Autenticar primero si no tenemos token (usando credenciales dinámicas si están disponibles)
+
         if (
           !this.client.defaults.headers["Authorization"] ||
           !this.client.defaults.headers["Authorization"].includes("Bearer")
@@ -491,7 +491,7 @@ export class SigoService {
           await this.authenticate(dynamicCredentials);
         }
 
-        // Formato para Siigo API v1/invoices
+
         const sigoPayload = {
           document: {
             id: payload.tipo_documento || 1,
@@ -655,9 +655,9 @@ export class SigoService {
   async healthCheck(): Promise<HealthCheckResult> {
     const startTime = Date.now();
     try {
-      // Intentar hacer una petición simple para verificar conectividad
+
       await this.client.get("/health", { timeout: 5000 }).catch(() => {
-        // Si /health no existe, intentar con /status o /
+
         return this.client.get("/status", { timeout: 5000 }).catch(() => {
           return this.client.get("/", { timeout: 5000 });
         });
@@ -811,13 +811,13 @@ export class SigoService {
   }
 }
 
-// Exportar instancia singleton
-// Factory function para obtener instancia con environment variables cargadas
+
+
 export function getSigoService(): SigoService {
   return new SigoService();
 }
 
-// Instancia singleton lazy - se crea la primera vez que se usa
+
 let sigoServiceInstance: SigoService | null = null;
 export const sigoService = {
   getInstance(): SigoService {

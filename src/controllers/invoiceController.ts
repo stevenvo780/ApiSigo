@@ -4,7 +4,7 @@ import { sigoService } from "@/services/sigoService";
 import { CreateInvoiceData } from "@/services/sigoService";
 import { InvoiceStatus } from "@/types";
 
-// Validaciones para crear factura
+
 export const validateInvoice = [
   body("serie").notEmpty().withMessage("Serie es requerida"),
   body("numero")
@@ -41,7 +41,7 @@ export const validateInvoice = [
     .withMessage("Total debe ser mayor a 0"),
 ];
 
-// Validaciones para parámetros de factura
+
 export const validateInvoiceParams = [
   param("serie").notEmpty().withMessage("Serie es requerida"),
   param("numero")
@@ -49,14 +49,14 @@ export const validateInvoiceParams = [
     .withMessage("Número debe ser un entero positivo"),
 ];
 
-// Validaciones para estado de factura
+
 export const validateStatus = [
   body("estado")
     .isIn(["PENDIENTE", "ENVIADO", "ACEPTADO", "RECHAZADO", "ANULADO"])
     .withMessage("Estado debe ser válido"),
 ];
 
-// Validaciones para motivo de anulación
+
 export const validateCancelReason = [
   body("motivo")
     .notEmpty()
@@ -322,7 +322,7 @@ export const getInvoices = async (
     const serie = req.query.serie as string;
     const estado = req.query.estado as string;
 
-    // Consulta paginada a SIGO
+
     res.json({
       success: true,
       data: {
@@ -355,10 +355,10 @@ export const resendInvoice = async (
   try {
     const { serie, numero } = req.params;
 
-    // Primero obtener la factura actual
+
     const invoice = await sigoService.getInstance().getInvoice(serie, numero);
 
-    // Luego reenviarla a SUNAT
+
     const result = await sigoService
       .getInstance()
       .sendInvoiceToSunat(serie, numero);

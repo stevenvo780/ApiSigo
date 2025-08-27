@@ -64,7 +64,7 @@ export class StructuredLogger {
         "authorization",
         "x-api-key",
       ],
-      maxMetadataSize: 10000, // 10KB max
+      maxMetadataSize: 10000,
       ...config,
     };
   }
@@ -208,7 +208,7 @@ export class StructuredLogger {
     message: string,
     options: Partial<LogEntry> = {},
   ): void {
-    // Verificar si debe loggear este nivel
+
     if (level > this.config.level) {
       return;
     }
@@ -221,11 +221,11 @@ export class StructuredLogger {
       ...options,
     };
 
-    // Sanitizar datos sensibles
+
     if (entry.metadata) {
       entry.metadata = this.sanitizeMetadata(entry.metadata);
 
-      // Limitar tamaño de metadata
+
       const metadataStr = JSON.stringify(entry.metadata);
       if (metadataStr.length > this.config.maxMetadataSize) {
         entry.metadata = {
@@ -233,7 +233,7 @@ export class StructuredLogger {
           _truncated: true,
           _originalSize: metadataStr.length,
         };
-        // Mantener solo los campos más importantes
+
         const importantFields = [
           "operation",
           "statusCode",
@@ -253,7 +253,7 @@ export class StructuredLogger {
       }
     }
 
-    // Output basado en configuración
+
     if (this.config.enableConsole) {
       this.outputConsole(entry);
     }
@@ -268,10 +268,10 @@ export class StructuredLogger {
    */
   private outputConsole(entry: LogEntry): void {
     if (this.config.enableStructured) {
-      // JSON estructurado
+
       console.log(JSON.stringify(entry));
     } else {
-      // Formato legible para desarrollo
+
       const levelName = LogLevel[entry.level];
       const timestamp = entry.timestamp;
       const service = entry.service;
@@ -300,7 +300,7 @@ export class StructuredLogger {
       const logLine = JSON.stringify(entry) + "\n";
       fs.appendFileSync(this.config.filePath!, logLine);
     } catch (error) {
-      // Fallback a consola si no se puede escribir archivo
+
       console.error("Failed to write to log file:", error);
       this.outputConsole(entry);
     }
@@ -328,7 +328,7 @@ export class StructuredLogger {
       }
     }
 
-    // Sanitizar objetos anidados
+
     for (const [key, value] of Object.entries(sanitized)) {
       if (
         typeof value === "object" &&
@@ -364,7 +364,7 @@ export class StructuredLogger {
 
       return urlObj.toString();
     } catch {
-      // Si no es una URL válida, retornar como está
+
       return url;
     }
   }
@@ -558,7 +558,7 @@ export class LoggerFactory {
   static getWebhookLogger(): StructuredLogger {
     return this.getLogger("webhook-service", {
       enableStructured: true,
-      level: LogLevel.DEBUG, // Más detalle para webhooks
+      level: LogLevel.DEBUG,
     });
   }
 }

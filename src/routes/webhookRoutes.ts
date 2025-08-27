@@ -17,7 +17,7 @@ const router = Router();
  * @desc    Procesar webhook de orden del Hub Central
  * @access  Public (con verificación HMAC)
  */
-// Verificación HMAC habilitada para producción
+
 router.post("/order", processOrderWebhook);
 
 /**

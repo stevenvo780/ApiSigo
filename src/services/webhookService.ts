@@ -31,7 +31,7 @@ export class WebhookService {
     this.hubCentralUrl = process.env.HUB_CENTRAL_URL || "";
     this.webhookSecret = process.env.APISIGO_WEBHOOK_SECRET || "";
     this.maxRetries = 3;
-    this.retryDelay = 1000; // 1 segundo inicial
+    this.retryDelay = 1000;
 
     this.client = axios.create({
       timeout: 10000,
@@ -152,15 +152,15 @@ export class WebhookService {
           },
         );
 
-        // Si es el último intento, no esperar
+
         if (attempt < maxIntentos) {
-          const delay = delayBase * Math.pow(2, attempt - 1); // Backoff exponencial
+          const delay = delayBase * Math.pow(2, attempt - 1);
           await this.wait(delay);
         }
       }
     }
 
-    // Si llegamos aquí, todos los reintentos fallaron
+
     throw lastError || new Error("Todos los reintentos fallaron");
   }
 
@@ -237,7 +237,7 @@ export class WebhookService {
     try {
       this.validateConfig();
 
-      // Probar conectividad al Hub Central
+
       const healthUrl = `${this.hubCentralUrl}/api/v1/health`;
       const response = await this.client.get(healthUrl, { timeout: 5000 });
 
@@ -311,7 +311,7 @@ export class WebhookService {
    * Obtener estadísticas de webhooks
    */
   getStats(): any {
-    // En una implementación real, esto vendría de una base de datos o cache
+
     return {
       total_sent: 0,
       successful: 0,
@@ -331,10 +331,10 @@ export class WebhookService {
     details: any,
   ): void {
     console.log(`[WEBHOOK] ${event.toUpperCase()}: ${status}`, details);
-    // En producción, esto se guardaría en base de datos para métricas
+
   }
 }
 
-// Exportar instancia singleton
+
 export const webhookService = new WebhookService();
 export default webhookService;

@@ -51,19 +51,19 @@ export class FacturaService {
     sigoCredentials?: { apiKey?: string; username?: string },
   ): Promise<FacturaServiceResponse> {
     try {
-      // Validar datos requeridos
+
       this.validateOrderData(orderData);
 
-      // Transformar datos de Graf/Hub Central a formato SIGO
+
       const facturaData = this.transformarDatosParaSigo(orderData);
 
-      // Crear factura en SIGO usando credenciales dinámicas si están disponibles
+
       const sigoResponse = await this.getSigoService().createInvoice(
         facturaData,
         sigoCredentials,
       );
 
-      // Formatear respuesta
+
       return {
         success: true,
         data: {
@@ -110,7 +110,7 @@ export class FacturaService {
       throw new ValidationError("El monto debe ser mayor a 0", "amount");
     }
 
-    // Validar items
+
     orderData.items.forEach((item, index) => {
       if (!item.product_name || !item.quantity || !item.unit_price) {
         throw new ValidationError(
@@ -128,7 +128,7 @@ export class FacturaService {
     const errors: any[] = [];
     const required = ["order_id", "amount", "items", "paid_at"] as const;
 
-    // Validar campos requeridos
+
     for (const field of required) {
       if (!orderData[field]) {
         errors.push({
@@ -140,7 +140,7 @@ export class FacturaService {
       }
     }
 
-    // Validar items
+
     if (!Array.isArray(orderData.items)) {
       errors.push({
         message: "Items debe ser un array",
@@ -156,7 +156,7 @@ export class FacturaService {
         value: orderData.items,
       });
     } else {
-      // Validar cada item
+
       orderData.items.forEach((item, index) => {
         if (!item.product_name) {
           errors.push({
@@ -182,7 +182,7 @@ export class FacturaService {
       });
     }
 
-    // Validar monto
+
     if (orderData.amount !== undefined && orderData.amount <= 0) {
       errors.push({
         message: "El monto debe ser mayor a 0",
@@ -212,20 +212,20 @@ export class FacturaService {
       paid_at,
     } = webhookData;
 
-    // Convertir timestamp a fecha/hora
+
     const fechaPago = new Date(paid_at);
     const fechaEmision = fechaPago.toISOString().split("T")[0];
     const horaEmision = fechaPago.toTimeString().split(" ")[0];
 
-    // Generar número correlativo único
+
     const numeroCorrelativo = this.generarNumeroCorrelativo();
 
-    // Convertir centavos a pesos colombianos
+
     const montoEnCOP = amount / 100;
 
-    // Procesar items
+
     const itemsFactura: SigoInvoiceItem[] = items.map((item) => {
-      const valorTotalItem = item.total / 100; // Convertir centavos a COP
+      const valorTotalItem = item.total / 100;
       const precioUnitario = item.unit_price / 100;
 
       const calculoIVA = this.calcularIVA(valorTotalItem);
@@ -273,8 +273,8 @@ export class FacturaService {
    * Obtener RUC del cliente (con fallback a genérico)
    */
   obtenerRucCliente(orderData: WebhookOrderData): string {
-    // En producción, esto vendría de la base de datos del cliente
-    // Por ahora usamos un RUC genérico o el que venga en los datos
+
+
     return (
       orderData.customer_ruc || process.env.SIGO_RUC_GENERICO || "20000000001"
     );
@@ -308,7 +308,7 @@ export class FacturaService {
       return sum + (item.total || item.quantity * item.unit_price);
     }, 0);
 
-    // IVA 19% en Colombia
+
     return Math.round((total / 1.19) * 100) / 100;
   }
 
@@ -322,7 +322,7 @@ export class FacturaService {
   ): any {
     let totalValue: number;
 
-    // Si es un array de items, calcular el total primero
+
     if (Array.isArray(valorTotal)) {
       totalValue = valorTotal.reduce((sum, item) => {
         return sum + (item.total || item.quantity * item.unit_price);
@@ -331,7 +331,7 @@ export class FacturaService {
       totalValue = valorTotal;
     }
 
-    // Calcular IVA 19% Colombia
+
     const valorSinIVA = totalValue / 1.19;
     const iva = totalValue - valorSinIVA;
 
@@ -377,7 +377,7 @@ export class FacturaService {
    * Generar número correlativo
    */
   generarNumeroCorrelativo(): number {
-    // Contador secuencial en base de datos
+
     return Math.floor(Date.now() / 1000) % 100000;
   }
 
@@ -417,7 +417,7 @@ export class FacturaService {
    * Validar NIT colombiano (básico)
    */
   validarNIT(nit: string): boolean {
-    // Validación básica de NIT colombiano
+
     const nitRegex = /^\d{9,10}-?\d$/;
     return nitRegex.test(nit);
   }
@@ -426,10 +426,10 @@ export class FacturaService {
    * Limpiar y formatear NIT
    */
   formatearNIT(nit: string): string {
-    // Remover caracteres no numéricos excepto guión
+
     const cleaned = nit.replace(/[^\d-]/g, "");
 
-    // Si no tiene guión, agregarlo antes del último dígito
+
     if (!cleaned.includes("-") && cleaned.length >= 2) {
       return cleaned.slice(0, -1) + "-" + cleaned.slice(-1);
     }
@@ -438,6 +438,6 @@ export class FacturaService {
   }
 }
 
-// Exportar instancia singleton
+
 export const facturaService = new FacturaService();
 export default facturaService;

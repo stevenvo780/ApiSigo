@@ -2,7 +2,7 @@ import axios from 'axios';
 import { SigoService } from '@/services/sigoService';
 import { CreateInvoiceData, CreateClientData } from '@/types';
 
-// Mock axios
+
 jest.mock('axios');
 const mockedAxios = axios as jest.Mocked<typeof axios>;
 
@@ -13,7 +13,7 @@ describe('SigoService', () => {
     sigoService = new SigoService();
     jest.clearAllMocks();
     
-    // Mock axios create
+
     mockedAxios.create.mockReturnValue(mockedAxios);
   });
 

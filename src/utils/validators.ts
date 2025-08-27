@@ -44,7 +44,7 @@ export function validateSigoApiKey(apiKey?: string): ValidationResult {
     };
   }
 
-  // Validar que no sea el valor por defecto
+
   if (apiKey === "default-api-key" || apiKey === "your-api-key-here") {
     return {
       isValid: false,
@@ -53,7 +53,7 @@ export function validateSigoApiKey(apiKey?: string): ValidationResult {
     };
   }
 
-  // Validar caracteres permitidos (alphanumeric + algunos símbolos)
+
   const validChars = /^[a-zA-Z0-9\-_\.]+$/;
   if (!validChars.test(apiKey)) {
     return {
@@ -102,7 +102,7 @@ export function validateSigoUsername(username?: string): ValidationResult {
     };
   }
 
-  // Validar formato de email si es el caso
+
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (username.includes("@") && !emailRegex.test(username)) {
     return {
@@ -151,7 +151,7 @@ export function validateSoftiaApiKey(apiKey?: string): ValidationResult {
     };
   }
 
-  // Validar que no sea el valor por defecto
+
   if (apiKey === "default-api-key" || apiKey === "your-api-key-here") {
     return {
       isValid: false,
@@ -189,7 +189,7 @@ export function validateApiUrl(
   try {
     const parsedUrl = new URL(url);
 
-    // Validar protocolo
+
     if (!["http:", "https:"].includes(parsedUrl.protocol)) {
       return {
         isValid: false,
@@ -198,7 +198,7 @@ export function validateApiUrl(
       };
     }
 
-    // Validar que tenga host
+
     if (!parsedUrl.hostname) {
       return {
         isValid: false,
@@ -207,7 +207,7 @@ export function validateApiUrl(
       };
     }
 
-    // Evitar URLs locales en producción
+
     if (
       process.env.NODE_ENV === "production" &&
       (parsedUrl.hostname === "localhost" || parsedUrl.hostname === "127.0.0.1")
@@ -316,7 +316,7 @@ export function validateWebhookSecret(secret?: string): ValidationResult {
     };
   }
 
-  // Validar que no sea el valor por defecto
+
   if (secret === "default-secret" || secret === "your-secret-here") {
     return {
       isValid: false,

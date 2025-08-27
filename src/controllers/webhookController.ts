@@ -5,18 +5,18 @@ import { facturaService } from "@/services/facturaService";
 import { webhookService } from "@/services/webhookService";
 import { WebhookOrderData } from "@/types";
 
-// Validaciones para webhook
+
 export const validateWebhook = [
-  // header('x-hub-signature-256').notEmpty().withMessage('Firma HMAC es requerida'),
-  // header('user-agent').contains('HubCentral-Webhooks').withMessage('User-Agent inválido'),
-  // body('order').notEmpty().withMessage('Datos de la orden son requeridos'),
-  // body('order.id').notEmpty().withMessage('ID de la orden es requerido'),
-  // body('order.total').isFloat({ min: 0 }).withMessage('Total debe ser mayor a 0'),
-  // body('order.customer').notEmpty().withMessage('Datos del cliente son requeridos'),
-  // body('order.items').isArray({ min: 1 }).withMessage('Debe incluir al menos un item')
+
+
+
+
+
+
+
 ];
 
-// Validaciones para reintento de webhook
+
 export const validateWebhookRetry = [
   body("webhookId").notEmpty().withMessage("ID del webhook es requerido"),
   body("url").isURL().withMessage("URL debe ser válida"),
@@ -25,10 +25,10 @@ export const validateWebhookRetry = [
 
 export interface WebhookRequest extends Request {
   body: {
-    order?: WebhookOrderData; // Para compatibilidad con HubCentral
-    event_type?: string; // Campo de Graf
+    order?: WebhookOrderData;
+    event_type?: string;
     data?: {
-      // Estructura de Graf
+
       order_id: number;
       store_id: number;
       customer_id?: number;
@@ -54,8 +54,8 @@ export interface WebhookRequest extends Request {
         };
       };
     };
-    event?: string; // Para compatibilidad con HubCentral
-    timestamp?: number; // Para compatibilidad con HubCentral
+    event?: string;
+    timestamp?: number;
   };
   headers: Request["headers"] & {
     "x-hub-signature-256"?: string;
@@ -121,10 +121,10 @@ export const verifySignature = (
       return;
     }
 
-    // Orden de prioridad para secreto:
-    // 1) APISIGO_WEBHOOK_SECRET explícito
-    // 2) x-api-key enviado por HubCentral (cuando firma con API Key)
-    // 3) WEBHOOK_SECRET global (fallback)
+
+
+
+
     const headerApiKey = (req.headers["x-api-key"] as string) || "";
     const secret =
       process.env.APISIGO_WEBHOOK_SECRET ||
@@ -181,7 +181,7 @@ export const processOrderWebhook = async (
       return;
     }
 
-    // Detectar si es estructura de Graf o HubCentral
+
     const isGrafWebhook = req.body.event_type && req.body.data;
     const webhookId = `webhook_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
@@ -190,7 +190,7 @@ export const processOrderWebhook = async (
     let sigoCredentials: any;
 
     if (isGrafWebhook) {
-      // Estructura de Graf
+
       const grafData = req.body.data!;
       event = req.body.event_type!;
       sigoCredentials = grafData.plugins_credentials?.sigo;
@@ -203,7 +203,7 @@ export const processOrderWebhook = async (
         JSON.stringify(grafData, null, 2),
       );
 
-      // Mapear estructura de Graf a WebhookOrderData
+
       orderData = {
         order_id: grafData.order_id,
         store_id: grafData.store_id,
@@ -218,11 +218,11 @@ export const processOrderWebhook = async (
           total: item.total,
         })),
         paid_at: grafData.paid_at,
-        customer_name: "Cliente Graf", // Graf no envía customer_name directamente
+        customer_name: "Cliente Graf",
         shipping_address: grafData.shipping_address,
       };
     } else {
-      // Estructura de HubCentral
+
       const {
         order,
         event: hubEvent,
@@ -252,13 +252,13 @@ export const processOrderWebhook = async (
       );
     }
 
-    // Procesar según el tipo de evento
+
     switch (event) {
       case "order.created":
       case "order.completed":
-      case "order.paid": // Evento de Graf
+      case "order.paid":
         try {
-          // Extraer credenciales de Siigo del webhook
+
           console.log(`[${webhookId}] DEBUG - Credenciales Sigio recibidas:`, {
             hasApiKey: !!sigoCredentials?.apiKey,
             hasUsername: !!sigoCredentials?.username,
@@ -271,7 +271,7 @@ export const processOrderWebhook = async (
             sigoCredentials,
           );
 
-          // Enviar confirmación al Hub Central
+
           await webhookService.enviarFacturaCreada(facturaResult);
 
           res.status(200).json({
@@ -287,7 +287,7 @@ export const processOrderWebhook = async (
         } catch (facturaError) {
           console.error(`[${webhookId}] Error creando factura:`, facturaError);
 
-          // Enviar error al Hub Central
+
           await webhookService.enviarError(orderData.order_id, {
             error: "Error creando factura",
             details:
@@ -308,8 +308,8 @@ export const processOrderWebhook = async (
         break;
 
       case "order.cancelled":
-      case "order.canceled": // compatibilidad con variante en-US
-        // Procesar cancelación de orden
+      case "order.canceled":
+
         const cancelOrderId = orderData.order_id;
         console.log(
           `[${webhookId}] Procesando cancelación de orden: ${cancelOrderId}`,
@@ -326,7 +326,7 @@ export const processOrderWebhook = async (
         break;
 
       case "order.refunded":
-        // Procesar reembolso de orden
+
         const refundOrderId = orderData.order_id;
         console.log(
           `[${webhookId}] Procesando reembolso de orden: ${refundOrderId}`,
@@ -409,7 +409,7 @@ export const getWebhookStatus = async (
   try {
     const { webhookId } = req.params;
 
-    // Consultar estado en base de datos
+
     res.json({
       success: true,
       data: {
@@ -438,7 +438,7 @@ export const getPendingWebhooks = async (
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 20;
 
-    // En una implementación real, esto consultaría una base de datos
+
     res.json({
       success: true,
       data: {

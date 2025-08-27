@@ -4,18 +4,18 @@
  */
 
 export interface CircuitBreakerOptions {
-  failureThreshold: number; // Número de fallos consecutivos antes de abrir el circuito
-  successThreshold: number; // Número de éxitos consecutivos para cerrar el circuito
-  timeout: number; // Tiempo en ms antes de intentar cambiar de OPEN a HALF_OPEN
-  resetTimeoutMultiplier: number; // Multiplicador para timeout exponencial
-  maxTimeout: number; // Timeout máximo en ms
+  failureThreshold: number;
+  successThreshold: number;
+  timeout: number;
+  resetTimeoutMultiplier: number;
+  maxTimeout: number;
   onStateChange?: (state: CircuitState, error?: Error) => void;
 }
 
 export enum CircuitState {
-  CLOSED = "CLOSED", // Funcionando normalmente
-  OPEN = "OPEN", // Circuito abierto, rechazando llamadas
-  HALF_OPEN = "HALF_OPEN", // Permitiendo llamadas limitadas para probar el servicio
+  CLOSED = "CLOSED",
+  OPEN = "OPEN",
+  HALF_OPEN = "HALF_OPEN",
 }
 
 export interface CircuitBreakerStats {
@@ -55,7 +55,7 @@ export class CircuitBreaker {
   private nextAttempt: number = 0;
   private currentTimeout: number;
 
-  // Estadísticas
+
   private totalRequests: number = 0;
   private totalFailures: number = 0;
   private totalSuccesses: number = 0;
@@ -75,13 +75,13 @@ export class CircuitBreaker {
   async execute<T>(fn: () => Promise<T>): Promise<T> {
     this.totalRequests++;
 
-    // Verificar si el circuito está abierto
+
     if (this.state === CircuitState.OPEN) {
       if (Date.now() < this.nextAttempt) {
         throw new CircuitOpenError(this.serviceName, this.nextAttempt);
       }
 
-      // Cambiar a HALF_OPEN para probar el servicio
+
       this.state = CircuitState.HALF_OPEN;
       this.successCount = 0;
       this.onStateChange(CircuitState.HALF_OPEN);
@@ -110,7 +110,7 @@ export class CircuitBreaker {
 
       if (this.successCount >= this.options.successThreshold) {
         this.state = CircuitState.CLOSED;
-        this.currentTimeout = this.options.timeout; // Reset timeout
+        this.currentTimeout = this.options.timeout;
         this.onStateChange(CircuitState.CLOSED);
       }
     }
@@ -123,7 +123,7 @@ export class CircuitBreaker {
     this.totalFailures++;
     this.lastFailureTime = Date.now();
     this.failureCount++;
-    this.successCount = 0; // Reset success count
+    this.successCount = 0;
 
     if (
       this.state === CircuitState.HALF_OPEN ||
@@ -132,7 +132,7 @@ export class CircuitBreaker {
       this.state = CircuitState.OPEN;
       this.nextAttempt = Date.now() + this.currentTimeout;
 
-      // Aumentar timeout exponencialmente
+
       this.currentTimeout = Math.min(
         this.currentTimeout * this.options.resetTimeoutMultiplier,
         this.options.maxTimeout,
@@ -233,11 +233,11 @@ export class CircuitBreakerFactory {
   ): CircuitBreaker {
     if (!this.breakers.has(serviceName)) {
       const defaultOptions: CircuitBreakerOptions = {
-        failureThreshold: 5, // 5 fallos consecutivos
-        successThreshold: 3, // 3 éxitos para cerrar
-        timeout: 60000, // 1 minuto inicial
-        resetTimeoutMultiplier: 2, // Duplicar timeout cada vez
-        maxTimeout: 300000, // Máximo 5 minutos
+        failureThreshold: 5,
+        successThreshold: 3,
+        timeout: 60000,
+        resetTimeoutMultiplier: 2,
+        maxTimeout: 300000,
         onStateChange: (state, error) => {
           console.log(
             `[CircuitBreakerFactory] ${serviceName} changed to ${state}`,
@@ -261,31 +261,31 @@ export class CircuitBreakerFactory {
    */
   static createSigoBreaker(): CircuitBreaker {
     return this.getOrCreate("sigo-api", {
-      failureThreshold: 3, // Siigo es crítico, fallar rápido
-      successThreshold: 2, // Recuperar rápido también
-      timeout: 30000, // 30 segundos inicial
-      resetTimeoutMultiplier: 1.5, // Aumentar más gradualmente
-      maxTimeout: 180000, // Máximo 3 minutos
+      failureThreshold: 3,
+      successThreshold: 2,
+      timeout: 30000,
+      resetTimeoutMultiplier: 1.5,
+      maxTimeout: 180000,
     });
   }
 
   static createSoftiaBreaker(): CircuitBreaker {
     return this.getOrCreate("softia-api", {
-      failureThreshold: 5, // CRM puede fallar más veces
-      successThreshold: 3, // Necesita más éxitos para recuperar
-      timeout: 45000, // 45 segundos inicial
-      resetTimeoutMultiplier: 2, // Duplicar timeout
-      maxTimeout: 300000, // Máximo 5 minutos
+      failureThreshold: 5,
+      successThreshold: 3,
+      timeout: 45000,
+      resetTimeoutMultiplier: 2,
+      maxTimeout: 300000,
     });
   }
 
   static createHubCentralBreaker(): CircuitBreaker {
     return this.getOrCreate("hubcentral-api", {
-      failureThreshold: 4, // Balance entre crítico y tolerante
-      successThreshold: 2, // Recuperar relativamente rápido
-      timeout: 20000, // 20 segundos inicial
-      resetTimeoutMultiplier: 1.8, // Aumentar gradualmente
-      maxTimeout: 120000, // Máximo 2 minutos
+      failureThreshold: 4,
+      successThreshold: 2,
+      timeout: 20000,
+      resetTimeoutMultiplier: 1.8,
+      maxTimeout: 120000,
     });
   }
 

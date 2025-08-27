@@ -40,7 +40,7 @@ export interface MetricsSnapshot {
  */
 export class MetricsCollector {
   private metrics = new Map<string, Metric[]>();
-  private readonly maxMetricsPerKey = 1000; // Evitar memory leaks
+  private readonly maxMetricsPerKey = 1000;
 
   /**
    * Incrementa un contador
@@ -115,7 +115,7 @@ export class MetricsCollector {
     const metricsList = this.metrics.get(name)!;
     metricsList.push(metric);
 
-    // Mantener solo las últimas N métricas para evitar memory leaks
+
     if (metricsList.length > this.maxMetricsPerKey) {
       metricsList.shift();
     }
@@ -128,12 +128,12 @@ export class MetricsCollector {
     const timestamp = Date.now();
     const metrics: Record<string, Metric[]> = {};
 
-    // Copiar métricas
+
     for (const [name, metricsList] of this.metrics) {
       metrics[name] = [...metricsList];
     }
 
-    // Calcular summary
+
     const summary = this.calculateSummary();
 
     return {
@@ -182,7 +182,7 @@ export class MetricsCollector {
    * Limpia métricas antiguas (más de X tiempo)
    */
   cleanup(olderThanMs: number = 3600000): void {
-    // 1 hora por defecto
+
     const cutoffTime = Date.now() - olderThanMs;
 
     for (const [name, metricsList] of this.metrics) {
@@ -333,7 +333,7 @@ export class ApiMetrics {
         operation,
       },
       {
-        message: errorMessage?.substring(0, 200), // Limitar longitud
+        message: errorMessage?.substring(0, 200),
       },
     );
   }
@@ -388,7 +388,7 @@ export function metricsMiddleware(req: any, res: any, next: any): void {
     user_agent: req.get("User-Agent")?.substring(0, 50) || "unknown",
   });
 
-  // Override end method to capture response metrics
+
   const originalEnd = res.end;
   res.end = function (...args: any[]) {
     const duration = Date.now() - startTime;
@@ -426,7 +426,7 @@ export function getHealthWithMetrics(): {
   metrics: MetricsSnapshot;
 } {
   const snapshot = globalMetrics.getSnapshot();
-  const isHealthy = snapshot.summary.errorRate < 0.1; // Menos del 10% de errores
+  const isHealthy = snapshot.summary.errorRate < 0.1;
 
   return {
     status: isHealthy ? "healthy" : "unhealthy",
