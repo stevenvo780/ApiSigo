@@ -215,7 +215,7 @@ export class SigoService {
 
         const authTimeouts = getTimeoutConfig("sigo", "authentication");
         const response = await this.client.post(
-          "/v1/auth",
+          "/auth",
           {
             username: username,
             access_key: apiKey,
