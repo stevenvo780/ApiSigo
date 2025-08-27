@@ -28,7 +28,7 @@ export interface WebhookOrderData {
 // Interfaces auxiliares simplificadas (compatibles con la estructura real)
 export interface Customer {
   id?: number;
-  tipoDocumento: 'RUC' | 'DNI' | 'CE' | 'NIT' | 'CC';
+  tipoDocumento: "RUC" | "DNI" | "CE" | "NIT" | "CC";
   numeroDocumento: string;
   nombres: string;
   apellidos?: string;
@@ -55,7 +55,7 @@ export interface OrderItem {
 }
 
 export interface Discount {
-  tipo: 'porcentaje' | 'monto_fijo';
+  tipo: "porcentaje" | "monto_fijo";
   valor: number;
   descripcion?: string;
 }
@@ -169,7 +169,7 @@ export interface ValidationResult {
   warnings?: string[];
 }
 
-export type RequiredOrderFields = 'order_id' | 'amount' | 'items' | 'paid_at';
+export type RequiredOrderFields = "order_id" | "amount" | "items" | "paid_at";
 
 // Tipos para validación
 export interface ValidationError {
@@ -216,12 +216,12 @@ export interface WebhookConfig {
 
 // Tipos para monitoreo
 export interface HealthCheckResult {
-  status: 'healthy' | 'unhealthy' | 'degraded';
+  status: "healthy" | "unhealthy" | "degraded";
   timestamp: string;
   services: {
-    sigo: 'up' | 'down' | 'degraded';
-    database: 'up' | 'down' | 'degraded';
-    webhook: 'up' | 'down' | 'degraded';
+    sigo: "up" | "down" | "degraded";
+    database: "up" | "down" | "degraded";
+    webhook: "up" | "down" | "degraded";
   };
   response_time_ms: number;
   errors?: string[];
@@ -229,7 +229,7 @@ export interface HealthCheckResult {
 
 // Tipos para logs
 export interface LogEntry {
-  level: 'error' | 'warn' | 'info' | 'debug';
+  level: "error" | "warn" | "info" | "debug";
   message: string;
   timestamp: string;
   service: string;
@@ -238,37 +238,37 @@ export interface LogEntry {
 }
 
 // Estados de factura en SIGO
-export type EstadoFactura = 
-  | 'BORRADOR'
-  | 'PENDIENTE'
-  | 'ENVIADO_SUNAT'
-  | 'ACEPTADO'
-  | 'RECHAZADO'
-  | 'ANULADO';
+export type EstadoFactura =
+  | "BORRADOR"
+  | "PENDIENTE"
+  | "ENVIADO_SUNAT"
+  | "ACEPTADO"
+  | "RECHAZADO"
+  | "ANULADO";
 
 // Tipos de documento fiscal
-export type TipoDocumento = 
-  | 'FACTURA_VENTA'
-  | 'BOLETA_VENTA'
-  | 'NOTA_CREDITO'
-  | 'NOTA_DEBITO';
+export type TipoDocumento =
+  | "FACTURA_VENTA"
+  | "BOLETA_VENTA"
+  | "NOTA_CREDITO"
+  | "NOTA_DEBITO";
 
 // Tipos de identificación de cliente
-export type TipoIdentificacion = 
-  | 'RUC'
-  | 'DNI'
-  | 'CE'
-  | 'NIT'
-  | 'CC'
-  | 'PASAPORTE';
+export type TipoIdentificacion =
+  | "RUC"
+  | "DNI"
+  | "CE"
+  | "NIT"
+  | "CC"
+  | "PASAPORTE";
 
 // Eventos de webhook
-export type WebhookEvent = 
-  | 'pedido.pagado'
-  | 'pedido.cancelado'
-  | 'factura.creada'
-  | 'factura.enviada'
-  | 'factura.anulada';
+export type WebhookEvent =
+  | "pedido.pagado"
+  | "pedido.cancelado"
+  | "factura.creada"
+  | "factura.enviada"
+  | "factura.anulada";
 
 // Tipos para SIGO Service
 export interface CreateInvoiceData {

@@ -4,18 +4,18 @@
  */
 
 export interface CircuitBreakerOptions {
-  failureThreshold: number;      // Número de fallos consecutivos antes de abrir el circuito
-  successThreshold: number;      // Número de éxitos consecutivos para cerrar el circuito
-  timeout: number;               // Tiempo en ms antes de intentar cambiar de OPEN a HALF_OPEN
+  failureThreshold: number; // Número de fallos consecutivos antes de abrir el circuito
+  successThreshold: number; // Número de éxitos consecutivos para cerrar el circuito
+  timeout: number; // Tiempo en ms antes de intentar cambiar de OPEN a HALF_OPEN
   resetTimeoutMultiplier: number; // Multiplicador para timeout exponencial
-  maxTimeout: number;            // Timeout máximo en ms
+  maxTimeout: number; // Timeout máximo en ms
   onStateChange?: (state: CircuitState, error?: Error) => void;
 }
 
 export enum CircuitState {
-  CLOSED = 'CLOSED',     // Funcionando normalmente
-  OPEN = 'OPEN',         // Circuito abierto, rechazando llamadas
-  HALF_OPEN = 'HALF_OPEN' // Permitiendo llamadas limitadas para probar el servicio
+  CLOSED = "CLOSED", // Funcionando normalmente
+  OPEN = "OPEN", // Circuito abierto, rechazando llamadas
+  HALF_OPEN = "HALF_OPEN", // Permitiendo llamadas limitadas para probar el servicio
 }
 
 export interface CircuitBreakerStats {
@@ -34,11 +34,13 @@ export interface CircuitBreakerStats {
  * Error lanzado cuando el circuit breaker está abierto
  */
 export class CircuitOpenError extends Error {
-  public readonly name = 'CircuitOpenError';
+  public readonly name = "CircuitOpenError";
   public readonly nextAttemptTime: number;
 
   constructor(serviceName: string, nextAttemptTime: number) {
-    super(`Circuit breaker is OPEN for ${serviceName}. Next attempt at ${new Date(nextAttemptTime).toISOString()}`);
+    super(
+      `Circuit breaker is OPEN for ${serviceName}. Next attempt at ${new Date(nextAttemptTime).toISOString()}`,
+    );
     this.nextAttemptTime = nextAttemptTime;
   }
 }
@@ -52,7 +54,7 @@ export class CircuitBreaker {
   private successCount: number = 0;
   private nextAttempt: number = 0;
   private currentTimeout: number;
-  
+
   // Estadísticas
   private totalRequests: number = 0;
   private totalFailures: number = 0;
@@ -62,7 +64,7 @@ export class CircuitBreaker {
 
   constructor(
     private readonly serviceName: string,
-    private readonly options: CircuitBreakerOptions
+    private readonly options: CircuitBreakerOptions,
   ) {
     this.currentTimeout = options.timeout;
   }
@@ -78,7 +80,7 @@ export class CircuitBreaker {
       if (Date.now() < this.nextAttempt) {
         throw new CircuitOpenError(this.serviceName, this.nextAttempt);
       }
-      
+
       // Cambiar a HALF_OPEN para probar el servicio
       this.state = CircuitState.HALF_OPEN;
       this.successCount = 0;
@@ -102,10 +104,10 @@ export class CircuitBreaker {
     this.totalSuccesses++;
     this.lastSuccessTime = Date.now();
     this.failureCount = 0;
-    
+
     if (this.state === CircuitState.HALF_OPEN) {
       this.successCount++;
-      
+
       if (this.successCount >= this.options.successThreshold) {
         this.state = CircuitState.CLOSED;
         this.currentTimeout = this.options.timeout; // Reset timeout
@@ -122,17 +124,20 @@ export class CircuitBreaker {
     this.lastFailureTime = Date.now();
     this.failureCount++;
     this.successCount = 0; // Reset success count
-    
-    if (this.state === CircuitState.HALF_OPEN || this.failureCount >= this.options.failureThreshold) {
+
+    if (
+      this.state === CircuitState.HALF_OPEN ||
+      this.failureCount >= this.options.failureThreshold
+    ) {
       this.state = CircuitState.OPEN;
       this.nextAttempt = Date.now() + this.currentTimeout;
-      
+
       // Aumentar timeout exponencialmente
       this.currentTimeout = Math.min(
         this.currentTimeout * this.options.resetTimeoutMultiplier,
-        this.options.maxTimeout
+        this.options.maxTimeout,
       );
-      
+
       this.onStateChange(CircuitState.OPEN, error);
     }
   }
@@ -141,13 +146,18 @@ export class CircuitBreaker {
    * Maneja cambios de estado
    */
   private onStateChange(newState: CircuitState, error?: Error): void {
-    console.log(`[CircuitBreaker:${this.serviceName}] State changed to ${newState}`, {
-      previousState: this.state !== newState ? this.state : undefined,
-      failureCount: this.failureCount,
-      successCount: this.successCount,
-      nextAttempt: this.nextAttempt ? new Date(this.nextAttempt).toISOString() : undefined,
-      error: error?.message
-    });
+    console.log(
+      `[CircuitBreaker:${this.serviceName}] State changed to ${newState}`,
+      {
+        previousState: this.state !== newState ? this.state : undefined,
+        failureCount: this.failureCount,
+        successCount: this.successCount,
+        nextAttempt: this.nextAttempt
+          ? new Date(this.nextAttempt).toISOString()
+          : undefined,
+        error: error?.message,
+      },
+    );
 
     if (this.options.onStateChange) {
       this.options.onStateChange(newState, error);
@@ -174,7 +184,7 @@ export class CircuitBreaker {
       totalFailures: this.totalFailures,
       totalSuccesses: this.totalSuccesses,
       lastFailureTime: this.lastFailureTime,
-      lastSuccessTime: this.lastSuccessTime
+      lastSuccessTime: this.lastSuccessTime,
     };
   }
 
@@ -187,8 +197,10 @@ export class CircuitBreaker {
     this.successCount = 0;
     this.nextAttempt = 0;
     this.currentTimeout = this.options.timeout;
-    
-    console.log(`[CircuitBreaker:${this.serviceName}] Manually reset to CLOSED state`);
+
+    console.log(
+      `[CircuitBreaker:${this.serviceName}] Manually reset to CLOSED state`,
+    );
     this.onStateChange(CircuitState.CLOSED);
   }
 
@@ -198,8 +210,10 @@ export class CircuitBreaker {
   forceOpen(durationMs: number = this.options.timeout): void {
     this.state = CircuitState.OPEN;
     this.nextAttempt = Date.now() + durationMs;
-    
-    console.log(`[CircuitBreaker:${this.serviceName}] Manually forced to OPEN state for ${durationMs}ms`);
+
+    console.log(
+      `[CircuitBreaker:${this.serviceName}] Manually forced to OPEN state for ${durationMs}ms`,
+    );
     this.onStateChange(CircuitState.OPEN);
   }
 }
@@ -213,22 +227,30 @@ export class CircuitBreakerFactory {
   /**
    * Obtiene o crea un circuit breaker para un servicio
    */
-  static getOrCreate(serviceName: string, options?: Partial<CircuitBreakerOptions>): CircuitBreaker {
+  static getOrCreate(
+    serviceName: string,
+    options?: Partial<CircuitBreakerOptions>,
+  ): CircuitBreaker {
     if (!this.breakers.has(serviceName)) {
       const defaultOptions: CircuitBreakerOptions = {
-        failureThreshold: 5,           // 5 fallos consecutivos
-        successThreshold: 3,           // 3 éxitos para cerrar
-        timeout: 60000,                // 1 minuto inicial
-        resetTimeoutMultiplier: 2,     // Duplicar timeout cada vez
-        maxTimeout: 300000,            // Máximo 5 minutos
+        failureThreshold: 5, // 5 fallos consecutivos
+        successThreshold: 3, // 3 éxitos para cerrar
+        timeout: 60000, // 1 minuto inicial
+        resetTimeoutMultiplier: 2, // Duplicar timeout cada vez
+        maxTimeout: 300000, // Máximo 5 minutos
         onStateChange: (state, error) => {
-          console.log(`[CircuitBreakerFactory] ${serviceName} changed to ${state}`, 
-                     error ? { error: error.message } : {});
-        }
+          console.log(
+            `[CircuitBreakerFactory] ${serviceName} changed to ${state}`,
+            error ? { error: error.message } : {},
+          );
+        },
       };
 
       const finalOptions = { ...defaultOptions, ...options };
-      this.breakers.set(serviceName, new CircuitBreaker(serviceName, finalOptions));
+      this.breakers.set(
+        serviceName,
+        new CircuitBreaker(serviceName, finalOptions),
+      );
     }
 
     return this.breakers.get(serviceName)!;
@@ -238,32 +260,32 @@ export class CircuitBreakerFactory {
    * Configuraciones específicas por servicio
    */
   static createSigoBreaker(): CircuitBreaker {
-    return this.getOrCreate('sigo-api', {
-      failureThreshold: 3,           // Siigo es crítico, fallar rápido
-      successThreshold: 2,           // Recuperar rápido también
-      timeout: 30000,                // 30 segundos inicial
-      resetTimeoutMultiplier: 1.5,   // Aumentar más gradualmente
-      maxTimeout: 180000             // Máximo 3 minutos
+    return this.getOrCreate("sigo-api", {
+      failureThreshold: 3, // Siigo es crítico, fallar rápido
+      successThreshold: 2, // Recuperar rápido también
+      timeout: 30000, // 30 segundos inicial
+      resetTimeoutMultiplier: 1.5, // Aumentar más gradualmente
+      maxTimeout: 180000, // Máximo 3 minutos
     });
   }
 
   static createSoftiaBreaker(): CircuitBreaker {
-    return this.getOrCreate('softia-api', {
-      failureThreshold: 5,           // CRM puede fallar más veces
-      successThreshold: 3,           // Necesita más éxitos para recuperar
-      timeout: 45000,                // 45 segundos inicial
-      resetTimeoutMultiplier: 2,     // Duplicar timeout
-      maxTimeout: 300000             // Máximo 5 minutos
+    return this.getOrCreate("softia-api", {
+      failureThreshold: 5, // CRM puede fallar más veces
+      successThreshold: 3, // Necesita más éxitos para recuperar
+      timeout: 45000, // 45 segundos inicial
+      resetTimeoutMultiplier: 2, // Duplicar timeout
+      maxTimeout: 300000, // Máximo 5 minutos
     });
   }
 
   static createHubCentralBreaker(): CircuitBreaker {
-    return this.getOrCreate('hubcentral-api', {
-      failureThreshold: 4,           // Balance entre crítico y tolerante
-      successThreshold: 2,           // Recuperar relativamente rápido
-      timeout: 20000,                // 20 segundos inicial
-      resetTimeoutMultiplier: 1.8,   // Aumentar gradualmente
-      maxTimeout: 120000             // Máximo 2 minutos
+    return this.getOrCreate("hubcentral-api", {
+      failureThreshold: 4, // Balance entre crítico y tolerante
+      successThreshold: 2, // Recuperar relativamente rápido
+      timeout: 20000, // 20 segundos inicial
+      resetTimeoutMultiplier: 1.8, // Aumentar gradualmente
+      maxTimeout: 120000, // Máximo 2 minutos
     });
   }
 
@@ -272,11 +294,11 @@ export class CircuitBreakerFactory {
    */
   static getAllStats(): Record<string, CircuitBreakerStats> {
     const stats: Record<string, CircuitBreakerStats> = {};
-    
+
     for (const [name, breaker] of this.breakers) {
       stats[name] = breaker.getStats();
     }
-    
+
     return stats;
   }
 
@@ -287,6 +309,6 @@ export class CircuitBreakerFactory {
     for (const breaker of this.breakers.values()) {
       breaker.reset();
     }
-    console.log('[CircuitBreakerFactory] All circuit breakers have been reset');
+    console.log("[CircuitBreakerFactory] All circuit breakers have been reset");
   }
 }

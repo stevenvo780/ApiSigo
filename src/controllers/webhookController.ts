@@ -1,9 +1,9 @@
-import { Request, Response, NextFunction } from 'express';
-import { body, header, validationResult } from 'express-validator';
-import crypto from 'crypto';
-import { facturaService } from '@/services/facturaService';
-import { webhookService } from '@/services/webhookService';
-import { WebhookOrderData } from '@/types';
+import { Request, Response, NextFunction } from "express";
+import { body, header, validationResult } from "express-validator";
+import crypto from "crypto";
+import { facturaService } from "@/services/facturaService";
+import { webhookService } from "@/services/webhookService";
+import { WebhookOrderData } from "@/types";
 
 // Validaciones para webhook
 export const validateWebhook = [
@@ -18,16 +18,17 @@ export const validateWebhook = [
 
 // Validaciones para reintento de webhook
 export const validateWebhookRetry = [
-  body('webhookId').notEmpty().withMessage('ID del webhook es requerido'),
-  body('url').isURL().withMessage('URL debe ser válida'),
-  body('data').notEmpty().withMessage('Datos del webhook son requeridos')
+  body("webhookId").notEmpty().withMessage("ID del webhook es requerido"),
+  body("url").isURL().withMessage("URL debe ser válida"),
+  body("data").notEmpty().withMessage("Datos del webhook son requeridos"),
 ];
 
 export interface WebhookRequest extends Request {
   body: {
     order?: WebhookOrderData; // Para compatibilidad con HubCentral
     event_type?: string; // Campo de Graf
-    data?: { // Estructura de Graf
+    data?: {
+      // Estructura de Graf
       order_id: number;
       store_id: number;
       customer_id?: number;
@@ -56,10 +57,11 @@ export interface WebhookRequest extends Request {
     event?: string; // Para compatibilidad con HubCentral
     timestamp?: number; // Para compatibilidad con HubCentral
   };
-  headers: Request['headers'] & {
-    'x-hub-signature-256'?: string;
-    'user-agent'?: string;
-    'content-type'?: string;
+  headers: Request["headers"] & {
+    "x-hub-signature-256"?: string;
+    "x-hub-signature"?: string;
+    "user-agent"?: string;
+    "content-type"?: string;
   };
 }
 
@@ -81,19 +83,23 @@ export interface WebhookStatusRequest extends Request {
 /**
  * Verificar firma HMAC del webhook
  */
-const verifyWebhookSignature = (payload: string, signature: string, secret: string): boolean => {
+const verifyWebhookSignature = (
+  payload: string,
+  signature: string,
+  secret: string,
+): boolean => {
   try {
     const expectedSignature = `sha256=${crypto
-      .createHmac('sha256', secret)
-      .update(payload, 'utf8')
-      .digest('hex')}`;
-    
+      .createHmac("sha256", secret)
+      .update(payload, "utf8")
+      .digest("hex")}`;
+
     return crypto.timingSafeEqual(
       Buffer.from(signature),
-      Buffer.from(expectedSignature)
+      Buffer.from(expectedSignature),
     );
   } catch (error) {
-    console.error('Error verificando firma HMAC:', error);
+    console.error("Error verificando firma HMAC:", error);
     return false;
   }
 };
@@ -101,57 +107,76 @@ const verifyWebhookSignature = (payload: string, signature: string, secret: stri
 /**
  * Middleware para verificar la firma del webhook
  */
-export const verifySignature = (req: Request, res: Response, next: NextFunction): void => {
+export const verifySignature = (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): void => {
   try {
-    const signature = req.headers['x-hub-signature-256'] as string;
-    const secret = process.env.WEBHOOK_SECRET || 'default-secret';
-    
+    const signature = (req.headers["x-hub-signature-256"] ||
+      req.headers["x-hub-signature"]) as string;
+
     if (!signature) {
-      res.status(401).json({
-        error: 'Firma HMAC no proporcionada'
-      });
+      res.status(401).json({ error: "Firma HMAC no proporcionada" });
       return;
     }
 
-    // Usar rawBody si está disponible, sino usar JSON stringified
-    const payload = (req as any).rawBody ? (req as any).rawBody.toString() : JSON.stringify(req.body);
-    console.log('[DEBUG] Verificando firma HMAC:', {
-      hasRawBody: !!(req as any).rawBody,
-      payloadLength: payload.length,
-      signature: signature,
-      secret: secret.substring(0, 10) + '...'
-    });
-    
-    const isValid = verifyWebhookSignature(payload, signature, secret);
+    // Orden de prioridad para secreto:
+    // 1) APISIGO_WEBHOOK_SECRET explícito
+    // 2) x-api-key enviado por HubCentral (cuando firma con API Key)
+    // 3) WEBHOOK_SECRET global (fallback)
+    const headerApiKey = (req.headers["x-api-key"] as string) || "";
+    const secret =
+      process.env.APISIGO_WEBHOOK_SECRET ||
+      headerApiKey ||
+      process.env.WEBHOOK_SECRET ||
+      "default-secret";
+
+    const payload = (req as any).rawBody
+      ? (req as any).rawBody.toString()
+      : JSON.stringify(req.body);
+
+    const expectedSignature = `sha256=${crypto
+      .createHmac("sha256", secret)
+      .update(payload, "utf8")
+      .digest("hex")}`;
+
+    const isValid = (() => {
+      try {
+        return crypto.timingSafeEqual(
+          Buffer.from(signature),
+          Buffer.from(expectedSignature),
+        );
+      } catch {
+        return signature === expectedSignature;
+      }
+    })();
 
     if (!isValid) {
-      console.error('[DEBUG] Firma HMAC inválida');
-      res.status(401).json({
-        error: 'Firma HMAC inválida'
-      });
+      res.status(401).json({ error: "Firma HMAC inválida" });
       return;
     }
 
-    console.log('[DEBUG] Firma HMAC válida');
     next();
-  } catch (error) {
-    console.error('[DEBUG] Error verificando firma:', error);
-    res.status(500).json({
-      error: 'Error verificando firma del webhook'
-    });
+  } catch {
+    res.status(500).json({ error: "Error verificando firma del webhook" });
   }
 };
 
 /**
  * Procesar webhook de orden
  */
-export const processOrderWebhook = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const processOrderWebhook = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       res.status(400).json({
-        error: 'Datos inválidos',
-        details: errors.array()
+        error: "Datos inválidos",
+        details: errors.array(),
       });
       return;
     }
@@ -159,41 +184,51 @@ export const processOrderWebhook = async (req: Request, res: Response, next: Nex
     // Detectar si es estructura de Graf o HubCentral
     const isGrafWebhook = req.body.event_type && req.body.data;
     const webhookId = `webhook_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
+
     let orderData: any;
     let event: string;
     let sigoCredentials: any;
-    
+
     if (isGrafWebhook) {
       // Estructura de Graf
       const grafData = req.body.data!;
       event = req.body.event_type!;
       sigoCredentials = grafData.plugins_credentials?.sigo;
-      
-      console.log(`[${webhookId}] Procesando webhook de Graf - orden: ${grafData.order_id}, evento: ${event}`);
-      console.log(`[${webhookId}] DEBUG - Estructura del webhook de Graf:`, JSON.stringify(grafData, null, 2));
-      
+
+      console.log(
+        `[${webhookId}] Procesando webhook de Graf - orden: ${grafData.order_id}, evento: ${event}`,
+      );
+      console.log(
+        `[${webhookId}] DEBUG - Estructura del webhook de Graf:`,
+        JSON.stringify(grafData, null, 2),
+      );
+
       // Mapear estructura de Graf a WebhookOrderData
       orderData = {
         order_id: grafData.order_id,
         store_id: grafData.store_id,
         customer_id: grafData.customer_id || grafData.user_id,
         amount: grafData.amount,
-        currency: grafData.currency || 'COP',
+        currency: grafData.currency || "COP",
         items: grafData.items.map((item: any) => ({
           product_id: item.product_id,
           product_name: item.product_name,
           quantity: item.quantity,
           unit_price: item.unit_price,
-          total: item.total
+          total: item.total,
         })),
         paid_at: grafData.paid_at,
-        customer_name: 'Cliente Graf', // Graf no envía customer_name directamente
-        shipping_address: grafData.shipping_address
+        customer_name: "Cliente Graf", // Graf no envía customer_name directamente
+        shipping_address: grafData.shipping_address,
       };
     } else {
       // Estructura de HubCentral
-      const { order, event: hubEvent, timestamp, plugins_credentials } = req.body as {
+      const {
+        order,
+        event: hubEvent,
+        timestamp,
+        plugins_credentials,
+      } = req.body as {
         order: WebhookOrderData;
         event: string;
         timestamp: number;
@@ -207,91 +242,111 @@ export const processOrderWebhook = async (req: Request, res: Response, next: Nex
       event = hubEvent;
       sigoCredentials = plugins_credentials?.sigo;
       orderData = order;
-      
-      console.log(`[${webhookId}] Procesando webhook de HubCentral - orden: ${order.order_id}, evento: ${event}`);
-      console.log(`[${webhookId}] DEBUG - Estructura del webhook de HubCentral:`, JSON.stringify(order, null, 2));
+
+      console.log(
+        `[${webhookId}] Procesando webhook de HubCentral - orden: ${order.order_id}, evento: ${event}`,
+      );
+      console.log(
+        `[${webhookId}] DEBUG - Estructura del webhook de HubCentral:`,
+        JSON.stringify(order, null, 2),
+      );
     }
 
     // Procesar según el tipo de evento
     switch (event) {
-      case 'order.created':
-      case 'order.completed':
-      case 'order.paid': // Evento de Graf
+      case "order.created":
+      case "order.completed":
+      case "order.paid": // Evento de Graf
         try {
           // Extraer credenciales de Siigo del webhook
           console.log(`[${webhookId}] DEBUG - Credenciales Sigio recibidas:`, {
             hasApiKey: !!sigoCredentials?.apiKey,
             hasUsername: !!sigoCredentials?.username,
-            apiKeyStart: sigoCredentials?.apiKey?.substring(0, 10) + '...' || 'N/A'
+            apiKeyStart:
+              sigoCredentials?.apiKey?.substring(0, 10) + "..." || "N/A",
           });
-          
-          const facturaResult = await facturaService.crearFacturaDesdeWebhook(orderData, sigoCredentials);
-          
+
+          const facturaResult = await facturaService.crearFacturaDesdeWebhook(
+            orderData,
+            sigoCredentials,
+          );
+
           // Enviar confirmación al Hub Central
           await webhookService.enviarFacturaCreada(facturaResult);
 
           res.status(200).json({
             success: true,
-            message: 'Webhook procesado exitosamente',
+            message: "Webhook procesado exitosamente",
             data: {
               webhookId,
               orderId: orderData.order_id,
               event,
-              facturaResult
-            }
+              facturaResult,
+            },
           });
         } catch (facturaError) {
           console.error(`[${webhookId}] Error creando factura:`, facturaError);
-          
+
           // Enviar error al Hub Central
           await webhookService.enviarError(orderData.order_id, {
-            error: 'Error creando factura',
-            details: facturaError instanceof Error ? facturaError.message : 'Unknown error'
+            error: "Error creando factura",
+            details:
+              facturaError instanceof Error
+                ? facturaError.message
+                : "Unknown error",
           });
 
           res.status(500).json({
-            error: 'Error procesando la orden',
+            error: "Error procesando la orden",
             webhookId,
-            details: facturaError instanceof Error ? facturaError.message : 'Unknown error'
+            details:
+              facturaError instanceof Error
+                ? facturaError.message
+                : "Unknown error",
           });
         }
         break;
 
-      case 'order.cancelled':
+      case "order.cancelled":
+      case "order.canceled": // compatibilidad con variante en-US
         // Procesar cancelación de orden
         const cancelOrderId = orderData.order_id;
-        console.log(`[${webhookId}] Procesando cancelación de orden: ${cancelOrderId}`);
+        console.log(
+          `[${webhookId}] Procesando cancelación de orden: ${cancelOrderId}`,
+        );
         res.status(200).json({
           success: true,
-          message: 'Cancelación procesada',
+          message: "Cancelación procesada",
           data: {
             webhookId,
             orderId: cancelOrderId,
-            event
-          }
+            event,
+          },
         });
         break;
 
-      case 'order.refunded':
+      case "order.refunded":
         // Procesar reembolso de orden
         const refundOrderId = orderData.order_id;
-        console.log(`[${webhookId}] Procesando reembolso de orden: ${refundOrderId}`);
+        console.log(
+          `[${webhookId}] Procesando reembolso de orden: ${refundOrderId}`,
+        );
         res.status(200).json({
           success: true,
-          message: 'Reembolso procesado',
+          message: "Reembolso procesado",
           data: {
             webhookId,
             orderId: refundOrderId,
-            event
-          }
+            event,
+          },
         });
         break;
 
       default:
         console.log(`[${webhookId}] Evento no reconocido: ${event}`);
         res.status(400).json({
-          error: 'Tipo de evento no soportado',
-          event
+          error: "Tipo de evento no soportado",
+          event,
         });
     }
   } catch (error) {
@@ -302,35 +357,41 @@ export const processOrderWebhook = async (req: Request, res: Response, next: Nex
 /**
  * Reintentar webhook
  */
-export const retryWebhook = async (req: WebhookRetryRequest, res: Response, next: NextFunction): Promise<void> => {
+export const retryWebhook = async (
+  req: WebhookRetryRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       res.status(400).json({
-        error: 'Datos inválidos',
-        details: errors.array()
+        error: "Datos inválidos",
+        details: errors.array(),
       });
       return;
     }
 
     const { webhookId, url, data, retryCount = 0 } = req.body;
 
-    console.log(`Reintentando webhook ${webhookId}, intento: ${retryCount + 1}`);
+    console.log(
+      `Reintentando webhook ${webhookId}, intento: ${retryCount + 1}`,
+    );
 
     const result = await webhookService.enviarWebhookConReintentos(url, data, {
       maxIntentos: 3,
       delayBase: 1000,
-      timeout: 5000
+      timeout: 5000,
     });
 
     res.json({
       success: true,
-      message: 'Webhook reintentado exitosamente',
+      message: "Webhook reintentado exitosamente",
       data: {
         webhookId,
         retryCount: retryCount + 1,
-        result
-      }
+        result,
+      },
     });
   } catch (error) {
     next(error);
@@ -340,7 +401,11 @@ export const retryWebhook = async (req: WebhookRetryRequest, res: Response, next
 /**
  * Obtener estado del webhook
  */
-export const getWebhookStatus = async (req: WebhookStatusRequest, res: Response, next: NextFunction): Promise<void> => {
+export const getWebhookStatus = async (
+  req: WebhookStatusRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     const { webhookId } = req.params;
 
@@ -349,12 +414,12 @@ export const getWebhookStatus = async (req: WebhookStatusRequest, res: Response,
       success: true,
       data: {
         webhookId,
-        status: 'completed',
+        status: "completed",
         timestamp: new Date().toISOString(),
         attempts: 1,
         lastAttempt: new Date().toISOString(),
-        nextRetry: null
-      }
+        nextRetry: null,
+      },
     });
   } catch (error) {
     next(error);
@@ -364,7 +429,11 @@ export const getWebhookStatus = async (req: WebhookStatusRequest, res: Response,
 /**
  * Listar webhooks pendientes
  */
-export const getPendingWebhooks = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const getPendingWebhooks = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 20;
@@ -378,9 +447,9 @@ export const getPendingWebhooks = async (req: Request, res: Response, next: Next
           page,
           limit,
           total: 0,
-          pages: 0
-        }
-      }
+          pages: 0,
+        },
+      },
     });
   } catch (error) {
     next(error);
@@ -390,29 +459,31 @@ export const getPendingWebhooks = async (req: Request, res: Response, next: Next
 /**
  * Health check del sistema de webhooks
  */
-export const healthCheck = async (req: Request, res: Response): Promise<void> => {
+export const healthCheck = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
   try {
     const timestamp = new Date().toISOString();
-    
+
     res.json({
       success: true,
-      service: 'Webhook Controller',
+      service: "Webhook Controller",
       timestamp,
-      status: 'healthy',
+      status: "healthy",
       endpoints: {
-        process: '/api/webhooks/order',
-        retry: '/api/webhooks/retry',
-        status: '/api/webhooks/:webhookId/status',
-        pending: '/api/webhooks/pending'
-      }
+        process: "/api/webhooks/order",
+        retry: "/api/webhooks/retry",
+        status: "/api/webhooks/:webhookId/status",
+        pending: "/api/webhooks/pending",
+      },
     });
   } catch (error) {
     res.status(500).json({
       success: false,
-      service: 'Webhook Controller',
+      service: "Webhook Controller",
       timestamp: new Date().toISOString(),
-      error: error instanceof Error ? error.message : 'Unknown error'
+      error: error instanceof Error ? error.message : "Unknown error",
     });
   }
 };
-

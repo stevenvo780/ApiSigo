@@ -13,30 +13,54 @@ export interface ValidationResult {
  */
 export function validateSigoApiKey(apiKey?: string): ValidationResult {
   if (!apiKey) {
-    return { isValid: false, error: 'API key es requerida', details: 'Siigo API key no proporcionada' };
+    return {
+      isValid: false,
+      error: "API key es requerida",
+      details: "Siigo API key no proporcionada",
+    };
   }
 
-  if (typeof apiKey !== 'string') {
-    return { isValid: false, error: 'API key debe ser string', details: 'Tipo de dato inválido para Siigo API key' };
+  if (typeof apiKey !== "string") {
+    return {
+      isValid: false,
+      error: "API key debe ser string",
+      details: "Tipo de dato inválido para Siigo API key",
+    };
   }
 
   if (apiKey.length < 32) {
-    return { isValid: false, error: 'API key muy corta', details: 'Siigo API key debe tener al menos 32 caracteres' };
+    return {
+      isValid: false,
+      error: "API key muy corta",
+      details: "Siigo API key debe tener al menos 32 caracteres",
+    };
   }
 
   if (apiKey.length > 128) {
-    return { isValid: false, error: 'API key muy larga', details: 'Siigo API key no debe exceder 128 caracteres' };
+    return {
+      isValid: false,
+      error: "API key muy larga",
+      details: "Siigo API key no debe exceder 128 caracteres",
+    };
   }
 
   // Validar que no sea el valor por defecto
-  if (apiKey === 'default-api-key' || apiKey === 'your-api-key-here') {
-    return { isValid: false, error: 'API key por defecto', details: 'Debe configurar una API key real de Siigo' };
+  if (apiKey === "default-api-key" || apiKey === "your-api-key-here") {
+    return {
+      isValid: false,
+      error: "API key por defecto",
+      details: "Debe configurar una API key real de Siigo",
+    };
   }
 
   // Validar caracteres permitidos (alphanumeric + algunos símbolos)
   const validChars = /^[a-zA-Z0-9\-_\.]+$/;
   if (!validChars.test(apiKey)) {
-    return { isValid: false, error: 'Caracteres inválidos', details: 'API key contiene caracteres no permitidos' };
+    return {
+      isValid: false,
+      error: "Caracteres inválidos",
+      details: "API key contiene caracteres no permitidos",
+    };
   }
 
   return { isValid: true };
@@ -47,25 +71,45 @@ export function validateSigoApiKey(apiKey?: string): ValidationResult {
  */
 export function validateSigoUsername(username?: string): ValidationResult {
   if (!username) {
-    return { isValid: false, error: 'Username es requerido', details: 'Siigo username no proporcionado' };
+    return {
+      isValid: false,
+      error: "Username es requerido",
+      details: "Siigo username no proporcionado",
+    };
   }
 
-  if (typeof username !== 'string') {
-    return { isValid: false, error: 'Username debe ser string', details: 'Tipo de dato inválido para username' };
+  if (typeof username !== "string") {
+    return {
+      isValid: false,
+      error: "Username debe ser string",
+      details: "Tipo de dato inválido para username",
+    };
   }
 
   if (username.length < 3) {
-    return { isValid: false, error: 'Username muy corto', details: 'Username debe tener al menos 3 caracteres' };
+    return {
+      isValid: false,
+      error: "Username muy corto",
+      details: "Username debe tener al menos 3 caracteres",
+    };
   }
 
   if (username.length > 50) {
-    return { isValid: false, error: 'Username muy largo', details: 'Username no debe exceder 50 caracteres' };
+    return {
+      isValid: false,
+      error: "Username muy largo",
+      details: "Username no debe exceder 50 caracteres",
+    };
   }
 
   // Validar formato de email si es el caso
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (username.includes('@') && !emailRegex.test(username)) {
-    return { isValid: false, error: 'Email inválido', details: 'Si el username es email, debe tener formato válido' };
+  if (username.includes("@") && !emailRegex.test(username)) {
+    return {
+      isValid: false,
+      error: "Email inválido",
+      details: "Si el username es email, debe tener formato válido",
+    };
   }
 
   return { isValid: true };
@@ -76,24 +120,44 @@ export function validateSigoUsername(username?: string): ValidationResult {
  */
 export function validateSoftiaApiKey(apiKey?: string): ValidationResult {
   if (!apiKey) {
-    return { isValid: false, error: 'API key es requerida', details: 'Softia API key no proporcionada' };
+    return {
+      isValid: false,
+      error: "API key es requerida",
+      details: "Softia API key no proporcionada",
+    };
   }
 
-  if (typeof apiKey !== 'string') {
-    return { isValid: false, error: 'API key debe ser string', details: 'Tipo de dato inválido para Softia API key' };
+  if (typeof apiKey !== "string") {
+    return {
+      isValid: false,
+      error: "API key debe ser string",
+      details: "Tipo de dato inválido para Softia API key",
+    };
   }
 
   if (apiKey.length < 20) {
-    return { isValid: false, error: 'API key muy corta', details: 'Softia API key debe tener al menos 20 caracteres' };
+    return {
+      isValid: false,
+      error: "API key muy corta",
+      details: "Softia API key debe tener al menos 20 caracteres",
+    };
   }
 
   if (apiKey.length > 100) {
-    return { isValid: false, error: 'API key muy larga', details: 'Softia API key no debe exceder 100 caracteres' };
+    return {
+      isValid: false,
+      error: "API key muy larga",
+      details: "Softia API key no debe exceder 100 caracteres",
+    };
   }
 
   // Validar que no sea el valor por defecto
-  if (apiKey === 'default-api-key' || apiKey === 'your-api-key-here') {
-    return { isValid: false, error: 'API key por defecto', details: 'Debe configurar una API key real de Softia' };
+  if (apiKey === "default-api-key" || apiKey === "your-api-key-here") {
+    return {
+      isValid: false,
+      error: "API key por defecto",
+      details: "Debe configurar una API key real de Softia",
+    };
   }
 
   return { isValid: true };
@@ -102,37 +166,66 @@ export function validateSoftiaApiKey(apiKey?: string): ValidationResult {
 /**
  * Valida URL de API
  */
-export function validateApiUrl(url?: string, serviceName: string = 'API'): ValidationResult {
+export function validateApiUrl(
+  url?: string,
+  serviceName: string = "API",
+): ValidationResult {
   if (!url) {
-    return { isValid: false, error: 'URL es requerida', details: `URL de ${serviceName} no proporcionada` };
+    return {
+      isValid: false,
+      error: "URL es requerida",
+      details: `URL de ${serviceName} no proporcionada`,
+    };
   }
 
-  if (typeof url !== 'string') {
-    return { isValid: false, error: 'URL debe ser string', details: 'Tipo de dato inválido para URL' };
+  if (typeof url !== "string") {
+    return {
+      isValid: false,
+      error: "URL debe ser string",
+      details: "Tipo de dato inválido para URL",
+    };
   }
 
   try {
     const parsedUrl = new URL(url);
-    
+
     // Validar protocolo
-    if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
-      return { isValid: false, error: 'Protocolo inválido', details: 'URL debe usar HTTP o HTTPS' };
+    if (!["http:", "https:"].includes(parsedUrl.protocol)) {
+      return {
+        isValid: false,
+        error: "Protocolo inválido",
+        details: "URL debe usar HTTP o HTTPS",
+      };
     }
 
     // Validar que tenga host
     if (!parsedUrl.hostname) {
-      return { isValid: false, error: 'Host inválido', details: 'URL debe tener un hostname válido' };
+      return {
+        isValid: false,
+        error: "Host inválido",
+        details: "URL debe tener un hostname válido",
+      };
     }
 
     // Evitar URLs locales en producción
-    if (process.env.NODE_ENV === 'production' && 
-        (parsedUrl.hostname === 'localhost' || parsedUrl.hostname === '127.0.0.1')) {
-      return { isValid: false, error: 'URL localhost en producción', details: 'No se permite localhost en producción' };
+    if (
+      process.env.NODE_ENV === "production" &&
+      (parsedUrl.hostname === "localhost" || parsedUrl.hostname === "127.0.0.1")
+    ) {
+      return {
+        isValid: false,
+        error: "URL localhost en producción",
+        details: "No se permite localhost en producción",
+      };
     }
 
     return { isValid: true };
   } catch (error) {
-    return { isValid: false, error: 'URL malformada', details: 'URL no tiene formato válido' };
+    return {
+      isValid: false,
+      error: "URL malformada",
+      details: "URL no tiene formato válido",
+    };
   }
 }
 
@@ -155,7 +248,7 @@ export function validateSigoConfig(config: {
   }
 
   if (config.baseURL) {
-    const urlValidation = validateApiUrl(config.baseURL, 'Siigo');
+    const urlValidation = validateApiUrl(config.baseURL, "Siigo");
     if (!urlValidation.isValid) {
       return urlValidation;
     }
@@ -178,11 +271,15 @@ export function validateSoftiaConfig(config: {
   }
 
   if (config.apiSecret && config.apiSecret.length < 16) {
-    return { isValid: false, error: 'API secret muy corto', details: 'API secret debe tener al menos 16 caracteres' };
+    return {
+      isValid: false,
+      error: "API secret muy corto",
+      details: "API secret debe tener al menos 16 caracteres",
+    };
   }
 
   if (config.apiUrl) {
-    const urlValidation = validateApiUrl(config.apiUrl, 'Softia');
+    const urlValidation = validateApiUrl(config.apiUrl, "Softia");
     if (!urlValidation.isValid) {
       return urlValidation;
     }
@@ -196,20 +293,36 @@ export function validateSoftiaConfig(config: {
  */
 export function validateWebhookSecret(secret?: string): ValidationResult {
   if (!secret) {
-    return { isValid: false, error: 'Secret es requerido', details: 'Webhook secret no proporcionado' };
+    return {
+      isValid: false,
+      error: "Secret es requerido",
+      details: "Webhook secret no proporcionado",
+    };
   }
 
-  if (typeof secret !== 'string') {
-    return { isValid: false, error: 'Secret debe ser string', details: 'Tipo de dato inválido para secret' };
+  if (typeof secret !== "string") {
+    return {
+      isValid: false,
+      error: "Secret debe ser string",
+      details: "Tipo de dato inválido para secret",
+    };
   }
 
   if (secret.length < 16) {
-    return { isValid: false, error: 'Secret muy corto', details: 'Webhook secret debe tener al menos 16 caracteres' };
+    return {
+      isValid: false,
+      error: "Secret muy corto",
+      details: "Webhook secret debe tener al menos 16 caracteres",
+    };
   }
 
   // Validar que no sea el valor por defecto
-  if (secret === 'default-secret' || secret === 'your-secret-here') {
-    return { isValid: false, error: 'Secret por defecto', details: 'Debe configurar un secret real y seguro' };
+  if (secret === "default-secret" || secret === "your-secret-here") {
+    return {
+      isValid: false,
+      error: "Secret por defecto",
+      details: "Debe configurar un secret real y seguro",
+    };
   }
 
   return { isValid: true };

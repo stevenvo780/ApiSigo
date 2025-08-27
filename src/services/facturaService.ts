@@ -1,17 +1,17 @@
-import { sigoService } from './sigoService';
+import { sigoService } from "./sigoService";
 import {
   WebhookOrderData,
   SigoInvoiceData,
   FacturaServiceResponse,
   SigoInvoiceItem,
-  SigoInvoiceSummary
-} from '@/types';
+  SigoInvoiceSummary,
+} from "@/types";
 
 /**
  * Clase personalizada para errores de SIGO API
  */
 export class SigoApiError extends Error {
-  public readonly name = 'SigoApiError';
+  public readonly name = "SigoApiError";
   public readonly statusCode?: number;
   public readonly originalError?: Error;
 
@@ -26,7 +26,7 @@ export class SigoApiError extends Error {
  * Clase para errores de validación
  */
 export class ValidationError extends Error {
-  public readonly name = 'ValidationError';
+  public readonly name = "ValidationError";
   public readonly field: string;
 
   constructor(message: string, field: string) {
@@ -46,7 +46,10 @@ export class FacturaService {
   /**
    * Crear factura en SIGO basada en datos de webhook pedido.pagado
    */
-  async crearFacturaDesdeWebhook(orderData: WebhookOrderData, sigoCredentials?: { apiKey?: string; username?: string }): Promise<FacturaServiceResponse> {
+  async crearFacturaDesdeWebhook(
+    orderData: WebhookOrderData,
+    sigoCredentials?: { apiKey?: string; username?: string },
+  ): Promise<FacturaServiceResponse> {
     try {
       // Validar datos requeridos
       this.validateOrderData(orderData);
@@ -55,32 +58,34 @@ export class FacturaService {
       const facturaData = this.transformarDatosParaSigo(orderData);
 
       // Crear factura en SIGO usando credenciales dinámicas si están disponibles
-      const sigoResponse = await this.getSigoService().createInvoice(facturaData, sigoCredentials);
+      const sigoResponse = await this.getSigoService().createInvoice(
+        facturaData,
+        sigoCredentials,
+      );
 
       // Formatear respuesta
       return {
         success: true,
         data: {
           factura_id: this.generarFacturaId(orderData.order_id),
-          numero_factura: sigoResponse.numero_documento || 'PENDING',
-          estado: 'generada',
+          numero_factura: sigoResponse.numero_documento || "PENDING",
+          estado: "generada",
           pdf_url: sigoResponse.pdfUrl || sigoResponse.pdf_url,
-          xml_url: sigoResponse.xmlUrl || sigoResponse.xml_url
-        }
+          xml_url: sigoResponse.xmlUrl || sigoResponse.xml_url,
+        },
       };
-
     } catch (error) {
-      console.error('Error creando factura desde webhook:', error);
-      
-      if (error && typeof error === 'object' && 'response' in error) {
+      console.error("Error creando factura desde webhook:", error);
+
+      if (error && typeof error === "object" && "response" in error) {
         const axiosError = error as any;
         throw new SigoApiError(
           `Error en SIGO API: ${axiosError.response?.data?.message || axiosError.message}`,
           axiosError.response?.status,
-          axiosError
+          axiosError,
         );
       }
-      
+
       throw error;
     }
   }
@@ -89,8 +94,8 @@ export class FacturaService {
    * Validar que los datos del pedido sean correctos
    */
   validateOrderData(orderData: WebhookOrderData): void {
-    const required = ['order_id', 'amount', 'items', 'paid_at'] as const;
-    
+    const required = ["order_id", "amount", "items", "paid_at"] as const;
+
     for (const field of required) {
       if (!orderData[field]) {
         throw new ValidationError(`Campo requerido faltante: ${field}`, field);
@@ -98,17 +103,20 @@ export class FacturaService {
     }
 
     if (!Array.isArray(orderData.items) || orderData.items.length === 0) {
-      throw new ValidationError('Debe incluir al menos un item', 'items');
+      throw new ValidationError("Debe incluir al menos un item", "items");
     }
 
     if (orderData.amount <= 0) {
-      throw new ValidationError('El monto debe ser mayor a 0', 'amount');
+      throw new ValidationError("El monto debe ser mayor a 0", "amount");
     }
 
     // Validar items
     orderData.items.forEach((item, index) => {
       if (!item.product_name || !item.quantity || !item.unit_price) {
-        throw new ValidationError(`Item ${index} tiene datos incompletos`, `items[${index}]`);
+        throw new ValidationError(
+          `Item ${index} tiene datos incompletos`,
+          `items[${index}]`,
+        );
       }
     });
   }
@@ -118,16 +126,16 @@ export class FacturaService {
    */
   validateOrderDataWithResult(orderData: WebhookOrderData): any {
     const errors: any[] = [];
-    const required = ['order_id', 'amount', 'items', 'paid_at'] as const;
-    
+    const required = ["order_id", "amount", "items", "paid_at"] as const;
+
     // Validar campos requeridos
     for (const field of required) {
       if (!orderData[field]) {
         errors.push({
           message: `Campo requerido faltante: ${field}`,
           field,
-          code: 'REQUIRED_FIELD_MISSING',
-          value: orderData[field]
+          code: "REQUIRED_FIELD_MISSING",
+          value: orderData[field],
         });
       }
     }
@@ -135,17 +143,17 @@ export class FacturaService {
     // Validar items
     if (!Array.isArray(orderData.items)) {
       errors.push({
-        message: 'Items debe ser un array',
-        field: 'items',
-        code: 'INVALID_TYPE',
-        value: orderData.items
+        message: "Items debe ser un array",
+        field: "items",
+        code: "INVALID_TYPE",
+        value: orderData.items,
       });
     } else if (orderData.items.length === 0) {
       errors.push({
-        message: 'Debe incluir al menos un item',
-        field: 'items',
-        code: 'EMPTY_ARRAY',
-        value: orderData.items
+        message: "Debe incluir al menos un item",
+        field: "items",
+        code: "EMPTY_ARRAY",
+        value: orderData.items,
       });
     } else {
       // Validar cada item
@@ -154,21 +162,21 @@ export class FacturaService {
           errors.push({
             message: `Item ${index} falta product_name`,
             field: `items[${index}].product_name`,
-            value: item.product_name
+            value: item.product_name,
           });
         }
         if (!item.quantity || item.quantity <= 0) {
           errors.push({
             message: `Item ${index} falta quantity válida`,
             field: `items[${index}].quantity`,
-            value: item.quantity
+            value: item.quantity,
           });
         }
         if (!item.unit_price || item.unit_price <= 0) {
           errors.push({
             message: `Item ${index} falta unit_price válido`,
             field: `items[${index}].unit_price`,
-            value: item.unit_price
+            value: item.unit_price,
           });
         }
       });
@@ -177,15 +185,15 @@ export class FacturaService {
     // Validar monto
     if (orderData.amount !== undefined && orderData.amount <= 0) {
       errors.push({
-        message: 'El monto debe ser mayor a 0',
-        field: 'amount',
-        value: orderData.amount
+        message: "El monto debe ser mayor a 0",
+        field: "amount",
+        value: orderData.amount,
       });
     }
 
     return {
       isValid: errors.length === 0,
-      errors
+      errors,
     };
   }
 
@@ -193,61 +201,71 @@ export class FacturaService {
    * Transformar datos de webhook de Graf a formato SIGO (Colombia)
    */
   transformarDatosParaSigo(webhookData: WebhookOrderData): SigoInvoiceData {
-    const { order_id, store_id, customer_id, user_id, amount, currency, items, paid_at } = webhookData;
-    
+    const {
+      order_id,
+      store_id,
+      customer_id,
+      user_id,
+      amount,
+      currency,
+      items,
+      paid_at,
+    } = webhookData;
+
     // Convertir timestamp a fecha/hora
     const fechaPago = new Date(paid_at);
-    const fechaEmision = fechaPago.toISOString().split('T')[0];
-    const horaEmision = fechaPago.toTimeString().split(' ')[0];
-    
+    const fechaEmision = fechaPago.toISOString().split("T")[0];
+    const horaEmision = fechaPago.toTimeString().split(" ")[0];
+
     // Generar número correlativo único
     const numeroCorrelativo = this.generarNumeroCorrelativo();
-    
+
     // Convertir centavos a pesos colombianos
     const montoEnCOP = amount / 100;
-    
+
     // Procesar items
-    const itemsFactura: SigoInvoiceItem[] = items.map(item => {
+    const itemsFactura: SigoInvoiceItem[] = items.map((item) => {
       const valorTotalItem = item.total / 100; // Convertir centavos a COP
       const precioUnitario = item.unit_price / 100;
-      
+
       const calculoIVA = this.calcularIVA(valorTotalItem);
-      
+
       return {
         codigo_producto: `GRAF-${item.product_id}`,
         descripcion: item.product_name,
         cantidad: item.quantity,
-        unidad_medida: 'UND',
-        valor_unitario: Math.round(calculoIVA.valorSinIVA / item.quantity * 100) / 100,
+        unidad_medida: "UND",
+        valor_unitario:
+          Math.round((calculoIVA.valorSinIVA / item.quantity) * 100) / 100,
         precio_unitario: precioUnitario,
         valor_total: calculoIVA.valorSinIVA,
         iva_total: calculoIVA.iva,
-        precio_total: valorTotalItem
+        precio_total: valorTotalItem,
       };
     });
-    
+
     const resumenFactura = this.calcularResumen(itemsFactura);
-    
+
     return {
-      tipo_documento: 'FACTURA_VENTA',
-      serie: process.env.SIGO_SERIE_DEFAULT || 'FV',
+      tipo_documento: "FACTURA_VENTA",
+      serie: process.env.SIGO_SERIE_DEFAULT || "FV",
       numero_correlativo: numeroCorrelativo,
       fecha_emision: fechaEmision,
       hora_emision: horaEmision,
       cliente: {
-        tipo_documento: 'NIT',
-        numero_documento: process.env.SIGO_NIT_GENERICO || '900123456-1',
+        tipo_documento: "NIT",
+        numero_documento: process.env.SIGO_NIT_GENERICO || "900123456-1",
         razon_social: this.obtenerRazonSocialCliente(webhookData),
-        direccion: this.obtenerDireccionCliente(webhookData)
+        direccion: this.obtenerDireccionCliente(webhookData),
       },
-      moneda: 'COP',
+      moneda: "COP",
       items: itemsFactura,
       resumen: resumenFactura,
       referencia_externa: {
         orden_graf: order_id,
         tienda_graf: store_id || 1,
-        pagado_en: paid_at
-      }
+        pagado_en: paid_at,
+      },
     };
   }
 
@@ -257,34 +275,39 @@ export class FacturaService {
   obtenerRucCliente(orderData: WebhookOrderData): string {
     // En producción, esto vendría de la base de datos del cliente
     // Por ahora usamos un RUC genérico o el que venga en los datos
-    return orderData.customer_ruc || process.env.SIGO_RUC_GENERICO || '20000000001';
+    return (
+      orderData.customer_ruc || process.env.SIGO_RUC_GENERICO || "20000000001"
+    );
   }
 
   /**
    * Obtener razón social del cliente
    */
   obtenerRazonSocialCliente(orderData: WebhookOrderData): string {
-    return orderData.customer_name || 
-           `Cliente Graf ${orderData.customer_id}` || 
-           'Cliente Genérico';
+    return (
+      orderData.customer_name ||
+      `Cliente Graf ${orderData.customer_id}` ||
+      "Cliente Genérico"
+    );
   }
 
   /**
    * Obtener dirección del cliente
    */
   obtenerDireccionCliente(orderData: WebhookOrderData): string {
-    return orderData.shipping_address?.address || 
-           'Dirección no especificada';
+    return orderData.shipping_address?.address || "Dirección no especificada";
   }
 
   /**
    * Calcular subtotal (sin IVA) para Colombia
    */
-  calcularSubtotal(items: Array<{ total?: number; quantity: number; unit_price: number }>): number {
+  calcularSubtotal(
+    items: Array<{ total?: number; quantity: number; unit_price: number }>,
+  ): number {
     const total = items.reduce((sum, item) => {
-      return sum + (item.total || (item.quantity * item.unit_price));
+      return sum + (item.total || item.quantity * item.unit_price);
     }, 0);
-    
+
     // IVA 19% en Colombia
     return Math.round((total / 1.19) * 100) / 100;
   }
@@ -292,26 +315,30 @@ export class FacturaService {
   /**
    * Calcular IVA (19%) para Colombia
    */
-  calcularIVA(valorTotal: number | Array<{ total?: number; quantity: number; unit_price: number }>): any {
+  calcularIVA(
+    valorTotal:
+      | number
+      | Array<{ total?: number; quantity: number; unit_price: number }>,
+  ): any {
     let totalValue: number;
 
     // Si es un array de items, calcular el total primero
     if (Array.isArray(valorTotal)) {
       totalValue = valorTotal.reduce((sum, item) => {
-        return sum + (item.total || (item.quantity * item.unit_price));
+        return sum + (item.total || item.quantity * item.unit_price);
       }, 0);
     } else {
       totalValue = valorTotal;
     }
-    
+
     // Calcular IVA 19% Colombia
     const valorSinIVA = totalValue / 1.19;
     const iva = totalValue - valorSinIVA;
-    
+
     return {
       valorSinIVA: Math.round(valorSinIVA * 100) / 100,
       iva: Math.round(iva * 100) / 100,
-      total: Math.round(totalValue * 100) / 100
+      total: Math.round(totalValue * 100) / 100,
     };
   }
 
@@ -319,16 +346,22 @@ export class FacturaService {
    * Calcular resumen total de la factura
    */
   calcularResumen(itemsFactura: SigoInvoiceItem[]): SigoInvoiceSummary {
-    const subtotal = itemsFactura.reduce((sum, item) => sum + item.valor_total, 0);
+    const subtotal = itemsFactura.reduce(
+      (sum, item) => sum + item.valor_total,
+      0,
+    );
     const iva = itemsFactura.reduce((sum, item) => sum + item.iva_total, 0);
-    const total = itemsFactura.reduce((sum, item) => sum + item.precio_total, 0);
-    
+    const total = itemsFactura.reduce(
+      (sum, item) => sum + item.precio_total,
+      0,
+    );
+
     return {
       subtotal: Math.round(subtotal * 100) / 100,
       iva: Math.round(iva * 100) / 100,
       total_iva: Math.round(iva * 100) / 100,
       total_descuentos: 0,
-      total: Math.round(total * 100) / 100
+      total: Math.round(total * 100) / 100,
     };
   }
 
@@ -336,7 +369,7 @@ export class FacturaService {
    * Generar ID único de factura
    */
   generarFacturaId(orderId: number): string {
-    const fecha = new Date().toISOString().split('T')[0].replace(/-/g, '');
+    const fecha = new Date().toISOString().split("T")[0].replace(/-/g, "");
     return `FACT-${orderId}-${fecha}`;
   }
 
@@ -359,7 +392,7 @@ export class FacturaService {
    * Convertir centavos a pesos
    */
   centavosToPesos(centavos: number): number {
-    return Math.round(centavos / 100 * 100) / 100;
+    return Math.round((centavos / 100) * 100) / 100;
   }
 
   /**
@@ -373,10 +406,10 @@ export class FacturaService {
    * Formatear moneda colombiana
    */
   formatearMonedaCOP(valor: number): string {
-    return new Intl.NumberFormat('es-CO', {
-      style: 'currency',
-      currency: 'COP',
-      minimumFractionDigits: 2
+    return new Intl.NumberFormat("es-CO", {
+      style: "currency",
+      currency: "COP",
+      minimumFractionDigits: 2,
     }).format(valor);
   }
 
@@ -394,13 +427,13 @@ export class FacturaService {
    */
   formatearNIT(nit: string): string {
     // Remover caracteres no numéricos excepto guión
-    const cleaned = nit.replace(/[^\d-]/g, '');
-    
+    const cleaned = nit.replace(/[^\d-]/g, "");
+
     // Si no tiene guión, agregarlo antes del último dígito
-    if (!cleaned.includes('-') && cleaned.length >= 2) {
-      return cleaned.slice(0, -1) + '-' + cleaned.slice(-1);
+    if (!cleaned.includes("-") && cleaned.length >= 2) {
+      return cleaned.slice(0, -1) + "-" + cleaned.slice(-1);
     }
-    
+
     return cleaned;
   }
 }

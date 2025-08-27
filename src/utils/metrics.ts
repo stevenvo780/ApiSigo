@@ -10,15 +10,15 @@ export interface MetricData {
 }
 
 export interface Counter extends MetricData {
-  type: 'counter';
+  type: "counter";
 }
 
 export interface Gauge extends MetricData {
-  type: 'gauge';
+  type: "gauge";
 }
 
 export interface Histogram extends MetricData {
-  type: 'histogram';
+  type: "histogram";
   buckets?: number[];
 }
 
@@ -45,13 +45,18 @@ export class MetricsCollector {
   /**
    * Incrementa un contador
    */
-  incrementCounter(name: string, value: number = 1, labels?: Record<string, string>, metadata?: Record<string, any>): void {
+  incrementCounter(
+    name: string,
+    value: number = 1,
+    labels?: Record<string, string>,
+    metadata?: Record<string, any>,
+  ): void {
     const metric: Counter = {
-      type: 'counter',
+      type: "counter",
       timestamp: Date.now(),
       value,
       labels,
-      metadata
+      metadata,
     };
 
     this.addMetric(name, metric);
@@ -60,13 +65,18 @@ export class MetricsCollector {
   /**
    * Establece un gauge (valor instantáneo)
    */
-  setGauge(name: string, value: number, labels?: Record<string, string>, metadata?: Record<string, any>): void {
+  setGauge(
+    name: string,
+    value: number,
+    labels?: Record<string, string>,
+    metadata?: Record<string, any>,
+  ): void {
     const metric: Gauge = {
-      type: 'gauge',
+      type: "gauge",
       timestamp: Date.now(),
       value,
       labels,
-      metadata
+      metadata,
     };
 
     this.addMetric(name, metric);
@@ -75,14 +85,20 @@ export class MetricsCollector {
   /**
    * Registra un histograma (para tiempos de respuesta, tamaños, etc.)
    */
-  recordHistogram(name: string, value: number, buckets?: number[], labels?: Record<string, string>, metadata?: Record<string, any>): void {
+  recordHistogram(
+    name: string,
+    value: number,
+    buckets?: number[],
+    labels?: Record<string, string>,
+    metadata?: Record<string, any>,
+  ): void {
     const metric: Histogram = {
-      type: 'histogram',
+      type: "histogram",
       timestamp: Date.now(),
       value,
       buckets,
       labels,
-      metadata
+      metadata,
     };
 
     this.addMetric(name, metric);
@@ -111,7 +127,7 @@ export class MetricsCollector {
   getSnapshot(): MetricsSnapshot {
     const timestamp = Date.now();
     const metrics: Record<string, Metric[]> = {};
-    
+
     // Copiar métricas
     for (const [name, metricsList] of this.metrics) {
       metrics[name] = [...metricsList];
@@ -123,25 +139,27 @@ export class MetricsCollector {
     return {
       timestamp,
       metrics,
-      summary
+      summary,
     };
   }
 
   /**
    * Calcula estadísticas resumidas
    */
-  private calculateSummary(): MetricsSnapshot['summary'] {
-    const requestMetrics = this.metrics.get('api.requests.total') || [];
-    const errorMetrics = this.metrics.get('api.errors.total') || [];
-    const responseTimeMetrics = this.metrics.get('api.response_time') || [];
+  private calculateSummary(): MetricsSnapshot["summary"] {
+    const requestMetrics = this.metrics.get("api.requests.total") || [];
+    const errorMetrics = this.metrics.get("api.errors.total") || [];
+    const responseTimeMetrics = this.metrics.get("api.response_time") || [];
 
     const totalRequests = requestMetrics.reduce((sum, m) => sum + m.value, 0);
     const totalErrors = errorMetrics.reduce((sum, m) => sum + m.value, 0);
-    
-    const responseTimesValues = responseTimeMetrics.map(m => m.value);
-    const avgResponseTime = responseTimesValues.length > 0 
-      ? responseTimesValues.reduce((sum, val) => sum + val, 0) / responseTimesValues.length
-      : 0;
+
+    const responseTimesValues = responseTimeMetrics.map((m) => m.value);
+    const avgResponseTime =
+      responseTimesValues.length > 0
+        ? responseTimesValues.reduce((sum, val) => sum + val, 0) /
+          responseTimesValues.length
+        : 0;
 
     const errorRate = totalRequests > 0 ? totalErrors / totalRequests : 0;
 
@@ -149,7 +167,7 @@ export class MetricsCollector {
       totalRequests,
       totalErrors,
       avgResponseTime,
-      errorRate
+      errorRate,
     };
   }
 
@@ -163,11 +181,12 @@ export class MetricsCollector {
   /**
    * Limpia métricas antiguas (más de X tiempo)
    */
-  cleanup(olderThanMs: number = 3600000): void { // 1 hora por defecto
+  cleanup(olderThanMs: number = 3600000): void {
+    // 1 hora por defecto
     const cutoffTime = Date.now() - olderThanMs;
 
     for (const [name, metricsList] of this.metrics) {
-      const filtered = metricsList.filter(m => m.timestamp > cutoffTime);
+      const filtered = metricsList.filter((m) => m.timestamp > cutoffTime);
       this.metrics.set(name, filtered);
     }
   }
@@ -196,9 +215,15 @@ export const globalMetrics = new MetricsCollector();
  * Decorador para medir tiempo de ejecución de métodos
  */
 export function measureExecutionTime(metricName?: string) {
-  return function (target: any, propertyName: string, descriptor: PropertyDescriptor) {
+  return function (
+    target: any,
+    propertyName: string,
+    descriptor: PropertyDescriptor,
+  ) {
     const method = descriptor.value;
-    const finalMetricName = metricName || `method.${target.constructor.name}.${propertyName}.duration`;
+    const finalMetricName =
+      metricName ||
+      `method.${target.constructor.name}.${propertyName}.duration`;
 
     descriptor.value = async function (...args: any[]) {
       const startTime = Date.now();
@@ -214,17 +239,21 @@ export function measureExecutionTime(metricName?: string) {
         throw err;
       } finally {
         const duration = Date.now() - startTime;
-        
+
         globalMetrics.recordHistogram(finalMetricName, duration, undefined, {
           method: propertyName,
           class: target.constructor.name,
-          success: success ? 'true' : 'false'
+          success: success ? "true" : "false",
         });
 
-        globalMetrics.incrementCounter(`method.${target.constructor.name}.${propertyName}.calls`, 1, {
-          success: success ? 'true' : 'false',
-          error: error?.name || 'none'
-        });
+        globalMetrics.incrementCounter(
+          `method.${target.constructor.name}.${propertyName}.calls`,
+          1,
+          {
+            success: success ? "true" : "false",
+            error: error?.name || "none",
+          },
+        );
       }
     };
 
@@ -236,80 +265,113 @@ export function measureExecutionTime(metricName?: string) {
  * Helper para métricas de API
  */
 export class ApiMetrics {
-  static recordRequest(service: string, operation: string, method: string = 'POST'): void {
-    globalMetrics.incrementCounter('api.requests.total', 1, {
+  static recordRequest(
+    service: string,
+    operation: string,
+    method: string = "POST",
+  ): void {
+    globalMetrics.incrementCounter("api.requests.total", 1, {
       service,
       operation,
-      method
+      method,
     });
   }
 
-  static recordResponse(service: string, operation: string, statusCode: number, responseTimeMs: number): void {
+  static recordResponse(
+    service: string,
+    operation: string,
+    statusCode: number,
+    responseTimeMs: number,
+  ): void {
     const success = statusCode >= 200 && statusCode < 400;
-    
-    globalMetrics.recordHistogram('api.response_time', responseTimeMs, undefined, {
-      service,
-      operation,
-      status_code: statusCode.toString(),
-      success: success.toString()
-    });
 
-    globalMetrics.incrementCounter('api.responses.total', 1, {
+    globalMetrics.recordHistogram(
+      "api.response_time",
+      responseTimeMs,
+      undefined,
+      {
+        service,
+        operation,
+        status_code: statusCode.toString(),
+        success: success.toString(),
+      },
+    );
+
+    globalMetrics.incrementCounter("api.responses.total", 1, {
       service,
       operation,
       status_code: statusCode.toString(),
-      success: success.toString()
+      success: success.toString(),
     });
 
     if (!success) {
-      globalMetrics.incrementCounter('api.errors.total', 1, {
+      globalMetrics.incrementCounter("api.errors.total", 1, {
         service,
         operation,
-        status_code: statusCode.toString()
+        status_code: statusCode.toString(),
       });
     }
   }
 
-  static recordError(service: string, operation: string, errorType: string, errorMessage?: string): void {
-    globalMetrics.incrementCounter('api.errors.total', 1, {
+  static recordError(
+    service: string,
+    operation: string,
+    errorType: string,
+    errorMessage?: string,
+  ): void {
+    globalMetrics.incrementCounter("api.errors.total", 1, {
       service,
       operation,
-      error_type: errorType
+      error_type: errorType,
     });
 
-    globalMetrics.incrementCounter(`api.errors.${errorType}`, 1, {
-      service,
-      operation
-    }, {
-      message: errorMessage?.substring(0, 200) // Limitar longitud
-    });
-  }
-
-  static recordCircuitBreakerState(service: string, state: string): void {
-    globalMetrics.setGauge('circuit_breaker.state', 
-      state === 'CLOSED' ? 0 : state === 'HALF_OPEN' ? 1 : 2, 
-      { service },
-      { state }
+    globalMetrics.incrementCounter(
+      `api.errors.${errorType}`,
+      1,
+      {
+        service,
+        operation,
+      },
+      {
+        message: errorMessage?.substring(0, 200), // Limitar longitud
+      },
     );
   }
 
-  static recordAuthentication(service: string, success: boolean, durationMs: number): void {
-    globalMetrics.recordHistogram('auth.duration', durationMs, undefined, {
+  static recordCircuitBreakerState(service: string, state: string): void {
+    globalMetrics.setGauge(
+      "circuit_breaker.state",
+      state === "CLOSED" ? 0 : state === "HALF_OPEN" ? 1 : 2,
+      { service },
+      { state },
+    );
+  }
+
+  static recordAuthentication(
+    service: string,
+    success: boolean,
+    durationMs: number,
+  ): void {
+    globalMetrics.recordHistogram("auth.duration", durationMs, undefined, {
       service,
-      success: success.toString()
+      success: success.toString(),
     });
 
-    globalMetrics.incrementCounter('auth.attempts.total', 1, {
+    globalMetrics.incrementCounter("auth.attempts.total", 1, {
       service,
-      success: success.toString()
+      success: success.toString(),
     });
   }
 
-  static recordValidation(service: string, field: string, success: boolean): void {
-    globalMetrics.incrementCounter('validation.attempts.total', 1, {
+  static recordValidation(
+    service: string,
+    field: string,
+    success: boolean,
+  ): void {
+    globalMetrics.incrementCounter("validation.attempts.total", 1, {
       service,
       field,
-      success: success.toString()
+      success: success.toString(),
     });
   }
 }
@@ -319,28 +381,33 @@ export class ApiMetrics {
  */
 export function metricsMiddleware(req: any, res: any, next: any): void {
   const startTime = Date.now();
-  
-  globalMetrics.incrementCounter('http.requests.total', 1, {
+
+  globalMetrics.incrementCounter("http.requests.total", 1, {
     method: req.method,
     path: req.route?.path || req.path,
-    user_agent: req.get('User-Agent')?.substring(0, 50) || 'unknown'
+    user_agent: req.get("User-Agent")?.substring(0, 50) || "unknown",
   });
 
   // Override end method to capture response metrics
   const originalEnd = res.end;
   res.end = function (...args: any[]) {
     const duration = Date.now() - startTime;
-    
-    globalMetrics.recordHistogram('http.request_duration', duration, undefined, {
-      method: req.method,
-      path: req.route?.path || req.path,
-      status_code: res.statusCode.toString()
-    });
 
-    globalMetrics.incrementCounter('http.responses.total', 1, {
+    globalMetrics.recordHistogram(
+      "http.request_duration",
+      duration,
+      undefined,
+      {
+        method: req.method,
+        path: req.route?.path || req.path,
+        status_code: res.statusCode.toString(),
+      },
+    );
+
+    globalMetrics.incrementCounter("http.responses.total", 1, {
       method: req.method,
       path: req.route?.path || req.path,
-      status_code: res.statusCode.toString()
+      status_code: res.statusCode.toString(),
     });
 
     originalEnd.apply(this, args);
@@ -353,7 +420,7 @@ export function metricsMiddleware(req: any, res: any, next: any): void {
  * Health check que incluye métricas
  */
 export function getHealthWithMetrics(): {
-  status: 'healthy' | 'unhealthy';
+  status: "healthy" | "unhealthy";
   timestamp: string;
   uptime: number;
   metrics: MetricsSnapshot;
@@ -362,9 +429,9 @@ export function getHealthWithMetrics(): {
   const isHealthy = snapshot.summary.errorRate < 0.1; // Menos del 10% de errores
 
   return {
-    status: isHealthy ? 'healthy' : 'unhealthy',
+    status: isHealthy ? "healthy" : "unhealthy",
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
-    metrics: snapshot
+    metrics: snapshot,
   };
 }

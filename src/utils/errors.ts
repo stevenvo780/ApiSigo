@@ -16,20 +16,20 @@ export interface ErrorContext {
  * Error base para todas las integraciones
  */
 export class IntegrationError extends Error {
-  public name = 'IntegrationError';
+  public name = "IntegrationError";
   public readonly statusCode?: number;
   public readonly originalError?: Error;
   public readonly context: ErrorContext;
   public readonly retryable: boolean;
 
   constructor(
-    message: string, 
+    message: string,
     context: ErrorContext,
     options: {
       statusCode?: number;
       originalError?: Error;
       retryable?: boolean;
-    } = {}
+    } = {},
   ) {
     super(message);
     this.statusCode = options.statusCode;
@@ -54,11 +54,13 @@ export class IntegrationError extends Error {
       retryable: this.retryable,
       context: this.context,
       stack: this.stack,
-      originalError: this.originalError ? {
-        name: this.originalError.name,
-        message: this.originalError.message,
-        stack: this.originalError.stack
-      } : undefined
+      originalError: this.originalError
+        ? {
+            name: this.originalError.name,
+            message: this.originalError.message,
+            stack: this.originalError.stack,
+          }
+        : undefined,
     };
   }
 }
@@ -67,13 +69,13 @@ export class IntegrationError extends Error {
  * Error específico para autenticación
  */
 export class AuthenticationError extends IntegrationError {
-  public name = 'AuthenticationError';
+  public name = "AuthenticationError";
 
   constructor(message: string, context: ErrorContext, originalError?: Error) {
     super(message, context, {
       statusCode: 401,
       originalError,
-      retryable: true // Los errores de auth pueden ser temporales
+      retryable: true, // Los errores de auth pueden ser temporales
     });
   }
 }
@@ -82,14 +84,19 @@ export class AuthenticationError extends IntegrationError {
  * Error específico para validaciones
  */
 export class ValidationError extends IntegrationError {
-  public name = 'ValidationError';
+  public name = "ValidationError";
   public readonly field?: string;
 
-  constructor(message: string, context: ErrorContext, field?: string, originalError?: Error) {
+  constructor(
+    message: string,
+    context: ErrorContext,
+    field?: string,
+    originalError?: Error,
+  ) {
     super(message, context, {
       statusCode: 400,
       originalError,
-      retryable: false // Los errores de validación no son reintentables
+      retryable: false, // Los errores de validación no son reintentables
     });
     this.field = field;
   }
@@ -99,28 +106,29 @@ export class ValidationError extends IntegrationError {
  * Error específico para APIs externas
  */
 export class ExternalApiError extends IntegrationError {
-  public name = 'ExternalApiError';
+  public name = "ExternalApiError";
   public readonly endpoint?: string;
   public readonly responseData?: any;
 
   constructor(
-    message: string, 
-    context: ErrorContext, 
+    message: string,
+    context: ErrorContext,
     options: {
       statusCode?: number;
       originalError?: Error;
       endpoint?: string;
       responseData?: any;
-    } = {}
+    } = {},
   ) {
-    const isRetryable = options.statusCode ? 
-      [429, 502, 503, 504].includes(options.statusCode) || options.statusCode >= 500 :
-      false;
+    const isRetryable = options.statusCode
+      ? [429, 502, 503, 504].includes(options.statusCode) ||
+        options.statusCode >= 500
+      : false;
 
     super(message, context, {
       statusCode: options.statusCode,
       originalError: options.originalError,
-      retryable: isRetryable
+      retryable: isRetryable,
     });
 
     this.endpoint = options.endpoint;
@@ -132,18 +140,18 @@ export class ExternalApiError extends IntegrationError {
  * Error específico para timeouts
  */
 export class TimeoutError extends IntegrationError {
-  public name = 'TimeoutError';
+  public name = "TimeoutError";
   public readonly timeoutMs: number;
 
   constructor(
-    message: string, 
-    context: ErrorContext, 
+    message: string,
+    context: ErrorContext,
     timeoutMs: number,
-    originalError?: Error
+    originalError?: Error,
   ) {
     super(message, context, {
       originalError,
-      retryable: true // Los timeouts son reintentables
+      retryable: true, // Los timeouts son reintentables
     });
     this.timeoutMs = timeoutMs;
   }
@@ -153,19 +161,19 @@ export class TimeoutError extends IntegrationError {
  * Error específico para rate limiting
  */
 export class RateLimitError extends IntegrationError {
-  public name = 'RateLimitError';
+  public name = "RateLimitError";
   public readonly retryAfterMs?: number;
 
   constructor(
-    message: string, 
-    context: ErrorContext, 
+    message: string,
+    context: ErrorContext,
     retryAfterMs?: number,
-    originalError?: Error
+    originalError?: Error,
   ) {
     super(message, context, {
       statusCode: 429,
       originalError,
-      retryable: true
+      retryable: true,
     });
     this.retryAfterMs = retryAfterMs;
   }
@@ -182,13 +190,13 @@ export function createErrorContext(
     userId?: string;
     tenantId?: string;
     metadata?: Record<string, any>;
-  } = {}
+  } = {},
 ): ErrorContext {
   return {
     service,
     operation,
     timestamp: new Date().toISOString(),
-    ...options
+    ...options,
   };
 }
 
@@ -202,19 +210,23 @@ export function parseAxiosError(error: any): {
   isTimeout: boolean;
   isNetworkError: boolean;
 } {
-  if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT') {
+  if (error.code === "ECONNABORTED" || error.code === "ETIMEDOUT") {
     return {
       isTimeout: true,
       isNetworkError: false,
-      endpoint: error.config?.url
+      endpoint: error.config?.url,
     };
   }
 
-  if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND' || error.code === 'ECONNRESET') {
+  if (
+    error.code === "ECONNREFUSED" ||
+    error.code === "ENOTFOUND" ||
+    error.code === "ECONNRESET"
+  ) {
     return {
       isNetworkError: true,
       isTimeout: false,
-      endpoint: error.config?.url
+      endpoint: error.config?.url,
     };
   }
 
@@ -224,14 +236,14 @@ export function parseAxiosError(error: any): {
       responseData: error.response.data,
       endpoint: error.config?.url,
       isTimeout: false,
-      isNetworkError: false
+      isNetworkError: false,
     };
   }
 
   return {
     isTimeout: false,
     isNetworkError: true,
-    endpoint: error.config?.url
+    endpoint: error.config?.url,
   };
 }
 
@@ -241,7 +253,7 @@ export function parseAxiosError(error: any): {
 export function createErrorFromAxios(
   axiosError: any,
   context: ErrorContext,
-  customMessage?: string
+  customMessage?: string,
 ): IntegrationError {
   const parsed = parseAxiosError(axiosError);
 
@@ -250,7 +262,7 @@ export function createErrorFromAxios(
       customMessage || `Timeout en ${context.operation}`,
       context,
       axiosError.config?.timeout || 30000,
-      axiosError
+      axiosError,
     );
   }
 
@@ -258,20 +270,21 @@ export function createErrorFromAxios(
     return new AuthenticationError(
       customMessage || `Error de autenticación en ${context.operation}`,
       context,
-      axiosError
+      axiosError,
     );
   }
 
   if (parsed.statusCode === 429) {
-    const retryAfter = parsed.responseData?.retryAfter || 
-                      axiosError.response?.headers?.['retry-after'];
+    const retryAfter =
+      parsed.responseData?.retryAfter ||
+      axiosError.response?.headers?.["retry-after"];
     const retryAfterMs = retryAfter ? parseInt(retryAfter) * 1000 : undefined;
 
     return new RateLimitError(
       customMessage || `Rate limit excedido en ${context.operation}`,
       context,
       retryAfterMs,
-      axiosError
+      axiosError,
     );
   }
 
@@ -280,7 +293,7 @@ export function createErrorFromAxios(
       customMessage || `Error de validación en ${context.operation}`,
       context,
       parsed.responseData.field,
-      axiosError
+      axiosError,
     );
   }
 
@@ -291,8 +304,8 @@ export function createErrorFromAxios(
       statusCode: parsed.statusCode,
       originalError: axiosError,
       endpoint: parsed.endpoint,
-      responseData: parsed.responseData
-    }
+      responseData: parsed.responseData,
+    },
   );
 }
 
@@ -302,13 +315,16 @@ export function createErrorFromAxios(
 export function logError(error: IntegrationError, logger?: any): void {
   const logData = {
     error: error.toJSON(),
-    level: 'error',
-    timestamp: new Date().toISOString()
+    level: "error",
+    timestamp: new Date().toISOString(),
   };
 
-  if (logger && typeof logger.error === 'function') {
+  if (logger && typeof logger.error === "function") {
     logger.error(logData);
   } else {
-    console.error(`[${error.context.service}:${error.context.operation}] ${error.name}: ${error.message}`, logData);
+    console.error(
+      `[${error.context.service}:${error.context.operation}] ${error.name}: ${error.message}`,
+      logData,
+    );
   }
 }
