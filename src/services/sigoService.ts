@@ -3,28 +3,17 @@ import dotenv from "dotenv";
 
 dotenv.config();
 import {
-  SigoConfig,
+  // SigoConfig, // unused
   SigoInvoiceData,
   SigoApiResponse,
-  SigoClient,
   InvoiceStatus,
   HealthCheckResult,
 } from "@/types";
-import {
-  validateSigoConfig,
-  validateSigoApiKey,
-  validateSigoUsername,
-} from "@/utils/validators";
-import { getTimeoutConfig, createTimeoutConfig } from "@/config/timeouts";
-import {
-  createErrorContext,
-  createErrorFromAxios,
-  AuthenticationError,
-  ValidationError,
-  logError,
-} from "@/utils/errors";
+import { validateSigoApiKey, validateSigoUsername } from "@/utils/validators";
+import { getTimeoutConfig } from "@/config/timeouts"; // removed createTimeoutConfig
+import { createErrorContext, createErrorFromAxios } from "@/utils/errors";
 import { CircuitBreakerFactory } from "@/utils/circuit-breaker";
-import { ApiMetrics, measureExecutionTime } from "@/utils/metrics";
+import { ApiMetrics } from "@/utils/metrics"; // removed measureExecutionTime
 import { LoggerFactory } from "@/utils/logger";
 
 export interface CreateClientData {
@@ -99,7 +88,7 @@ export interface CreateInvoiceData {
 }
 
 /**
- * Servicio para interactuar con la API de SIGO
+ * Servicio para interactuar con la API de SIGO (Siigo)
  */
 export class SigoService {
   private client: any;
@@ -153,6 +142,65 @@ export class SigoService {
     });
 
     this.setupInterceptors();
+  }
+
+  /**
+   * Helpers de mapeo para clientes Siigo
+   */
+  private mapTipoDocumentoToIdType(tipo: string): number {
+    // Siigo (Colombia): 31=NIT, 13=CC, 22=CE, 41=NIT de otro país; ajusta según país si aplica
+    const map: Record<string, number> = {
+      NIT: 31,
+      CC: 13,
+      CE: 22,
+      DNI: 13, // aproximación si se usa en CO
+      RUC: 41, // NIT extranjero como placeholder
+    };
+    return map[tipo] || 31;
+  }
+
+  private mapPersonType(tipo: string): "Company" | "Person" {
+    return tipo === "NIT" || tipo === "RUC" ? "Company" : "Person";
+  }
+
+  private buildSiigoCustomerPayload(data: CreateClientData) {
+    const idType = this.mapTipoDocumentoToIdType(data.tipoDocumento);
+    const personType = this.mapPersonType(data.tipoDocumento);
+
+    const phones = data.telefono
+      ? [{ indicative: "57", number: data.telefono }]
+      : undefined;
+
+    const address = data.direccion
+      ? {
+          address: data.direccion,
+          city: {
+            country_code: process.env.SIIGO_COUNTRY_CODE || "CO",
+            state_code: data.departamento || undefined,
+            city_code: data.ciudad || undefined,
+          },
+        }
+      : undefined;
+
+    return {
+      person_type: personType,
+      id_type: idType,
+      identification: data.numeroDocumento,
+      name: data.razonSocial,
+      commercial_name: data.razonSocial,
+      address,
+      phones,
+      contacts: data.email
+        ? [
+            {
+              first_name: data.razonSocial,
+              email: data.email,
+              phone: data.telefono,
+            },
+          ]
+        : undefined,
+      active: data.activo !== undefined ? data.activo : true,
+    };
   }
 
   /**
@@ -316,47 +364,49 @@ export class SigoService {
   }
 
   /**
-   * Crear cliente en SIGO
+   * Crear cliente en Siigo (/v1/customers)
    */
   async createClient(
     clientData: CreateClientData,
     dynamicCredentials?: { apiKey?: string; username?: string },
   ): Promise<any> {
     try {
-      // Use credentials if provided, otherwise use default from config
-      const apiCredentials = dynamicCredentials || this.getDefaultCredentials();
+      if (
+        !this.client.defaults.headers["Authorization"] ||
+        !this.client.defaults.headers["Authorization"].includes("Bearer")
+      ) {
+        await this.authenticate(dynamicCredentials);
+      }
 
-      const response = await this.request({
-        method: "POST",
-        endpoint: "/clientes",
-        data: clientData,
-        credentials: apiCredentials,
-      });
-
-      return response;
+      const payload = this.buildSiigoCustomerPayload(clientData);
+      const response = await this.client.post("/v1/customers", payload);
+      return response.data;
     } catch (error) {
-      this.logger.error("Error creando cliente en SIGO:", error);
+      this.logger.error("Error creando cliente en Siigo:", error);
       throw error;
     }
   }
 
   /**
-   * Obtener cliente por RUC/NIT
+   * Obtener cliente por identificación
    */
   async getClient(
     numeroDocumento: string,
     dynamicCredentials?: { apiKey?: string; username?: string },
   ): Promise<any> {
     try {
-      const apiCredentials = dynamicCredentials || this.getDefaultCredentials();
+      if (
+        !this.client.defaults.headers["Authorization"] ||
+        !this.client.defaults.headers["Authorization"].includes("Bearer")
+      ) {
+        await this.authenticate(dynamicCredentials);
+      }
 
-      const response = await this.request({
-        method: "GET",
-        endpoint: `/clientes/${numeroDocumento}`,
-        credentials: apiCredentials,
-      });
-
-      return response;
+      const response = await this.client.get(
+        `/v1/customers?identification=${encodeURIComponent(numeroDocumento)}`,
+      );
+      const items = response.data?.results || response.data || [];
+      return Array.isArray(items) ? items[0] : items;
     } catch (error) {
       this.logger.error(`Error obteniendo cliente ${numeroDocumento}:`, error);
       throw error;
@@ -364,7 +414,7 @@ export class SigoService {
   }
 
   /**
-   * Actualizar cliente
+   * Actualizar cliente (resuelve id por identificación y hace PUT /v1/customers/{id})
    */
   async updateClient(
     numeroDocumento: string,
@@ -372,39 +422,71 @@ export class SigoService {
     dynamicCredentials?: { apiKey?: string; username?: string },
   ): Promise<any> {
     try {
-      const apiCredentials = dynamicCredentials || this.getDefaultCredentials();
+      if (
+        !this.client.defaults.headers["Authorization"] ||
+        !this.client.defaults.headers["Authorization"].includes("Bearer")
+      ) {
+        await this.authenticate(dynamicCredentials);
+      }
 
-      const response = await this.request({
-        method: "PUT",
-        endpoint: `/clientes/${numeroDocumento}`,
-        data: updateData,
-        credentials: apiCredentials,
-      });
+      const existing = await this.getClient(
+        numeroDocumento,
+        dynamicCredentials,
+      );
+      const id = existing?.id;
+      if (!id) {
+        throw new Error("Cliente no encontrado en Siigo");
+      }
 
-      return response;
+      const merged: CreateClientData = {
+        tipoDocumento: existing.id_type || updateData.tipoDocumento || "NIT",
+        numeroDocumento,
+        razonSocial: updateData.razonSocial || existing.name,
+        email: updateData.email || existing?.contacts?.[0]?.email,
+        telefono: updateData.telefono || existing?.phones?.[0]?.number,
+        direccion: updateData.direccion || existing?.address?.address,
+        activo:
+          updateData.activo !== undefined ? updateData.activo : existing.active,
+      } as any;
+
+      const payload = this.buildSiigoCustomerPayload(merged);
+      const response = await this.client.put(`/v1/customers/${id}`, payload);
+      return response.data;
     } catch (error) {
-      this.logger.error(`Error actualizando cliente ${numeroDocumento}:`, error);
+      this.logger.error(
+        `Error actualizando cliente ${numeroDocumento}:`,
+        error,
+      );
       throw error;
     }
   }
 
   /**
-   * Eliminar cliente
+   * Eliminar cliente (resuelve id por identificación y hace DELETE /v1/customers/{id})
    */
   async deleteClient(
     numeroDocumento: string,
     dynamicCredentials?: { apiKey?: string; username?: string },
   ): Promise<any> {
     try {
-      const apiCredentials = dynamicCredentials || this.getDefaultCredentials();
+      if (
+        !this.client.defaults.headers["Authorization"] ||
+        !this.client.defaults.headers["Authorization"].includes("Bearer")
+      ) {
+        await this.authenticate(dynamicCredentials);
+      }
 
-      const response = await this.request({
-        method: "DELETE",
-        endpoint: `/clientes/${numeroDocumento}`,
-        credentials: apiCredentials,
-      });
+      const existing = await this.getClient(
+        numeroDocumento,
+        dynamicCredentials,
+      );
+      const id = existing?.id;
+      if (!id) {
+        throw new Error("Cliente no encontrado en Siigo");
+      }
 
-      return response;
+      const response = await this.client.delete(`/v1/customers/${id}`);
+      return response.data || { deleted: true };
     } catch (error) {
       this.logger.error(`Error eliminando cliente ${numeroDocumento}:`, error);
       throw error;
@@ -412,7 +494,7 @@ export class SigoService {
   }
 
   /**
-   * Crear factura en SIGO
+   * Crear factura en Siigo
    */
   async createInvoice(
     invoiceData: CreateInvoiceData | SigoInvoiceData,
@@ -441,7 +523,7 @@ export class SigoService {
         },
         message: "Factura mock creada exitosamente",
         status_code: 201,
-      };
+      } as any;
 
       console.log(`✅ [MOCK MODE] Factura mock creada: ${mockInvoice.data.id}`);
       return mockInvoice;
@@ -449,8 +531,8 @@ export class SigoService {
 
     return this.circuitBreaker.execute(async () => {
       try {
-        const isSigoFormat = "tipo_documento" in invoiceData;
-
+        // Construcción de payload estándar (con impuestos y pagos según Siigo)
+        const isSigoFormat = "tipo_documento" in (invoiceData as any);
         let payload: any;
 
         if (isSigoFormat) {
@@ -570,19 +652,31 @@ export class SigoService {
           await this.authenticate(dynamicCredentials);
         }
 
+        const TAX_ID = parseInt(process.env.SIIGO_TAX_ID || "13156", 10);
+        const PAYMENT_METHOD = parseInt(
+          process.env.SIIGO_PAYMENT_METHOD_ID || "5636",
+          10,
+        );
+        const COST_CENTER = process.env.SIIGO_COST_CENTER_ID
+          ? parseInt(process.env.SIIGO_COST_CENTER_ID, 10)
+          : undefined;
+        const SELLER = process.env.SIIGO_SELLER_ID
+          ? parseInt(process.env.SIIGO_SELLER_ID, 10)
+          : undefined;
+
         const sigoPayload = {
           document: {
-            id: payload.tipo_documento || 1,
+            id: 1, // id del tipo de documento configurado en Siigo
           },
           date: payload.fecha_emision,
           customer: {
             identification: payload.cliente.nit,
             branch_office: 0,
           },
-          cost_center: 235,
-          seller: 629,
+          ...(COST_CENTER ? { cost_center: COST_CENTER } : {}),
+          ...(SELLER ? { seller: SELLER } : {}),
           observations: payload.observaciones,
-          items: payload.items.map((item: any, index: number) => ({
+          items: payload.items.map((item: any) => ({
             code: item.codigo,
             description: item.descripcion,
             quantity: item.cantidad,
@@ -590,14 +684,13 @@ export class SigoService {
             discount: 0,
             taxes: [
               {
-                id: 13156,
-                value: item.iva_valor,
+                id: TAX_ID,
               },
             ],
           })),
           payments: [
             {
-              id: 5636,
+              payment_method: PAYMENT_METHOD,
               value: payload.totales.total,
               due_date: payload.fecha_vencimiento || payload.fecha_emision,
             },
@@ -605,16 +698,15 @@ export class SigoService {
           additional_fields: {},
         };
 
-        console.log(
+        this.logger.info(
           `✅ Creando factura en Siigo: ${payload.serie}-${payload.numero || "auto"}`,
         );
         const response = await this.client.post("/v1/invoices", sigoPayload);
-
-        console.log(`✅ Factura creada en Siigo: ${response.data.id}`);
+        this.logger.info(`✅ Factura creada en Siigo: ${response.data.id}`);
         return response.data;
       } catch (error: any) {
         console.error(
-          `❌ Error creando factura en SIGO:`,
+          `❌ Error creando factura en Siigo:`,
           error.response?.data || error.message,
         );
         throw new Error(
@@ -636,12 +728,22 @@ export class SigoService {
   }
 
   /**
-   * Obtener factura por serie y número
+   * Obtener factura por serie/número (mejor esfuerzo usando filtros)
    */
   async getInvoice(serie: string, numero: string | number): Promise<any> {
     try {
-      const response = await this.client.get(`/facturas/${serie}/${numero}`);
-      return response.data;
+      if (
+        !this.client.defaults.headers["Authorization"] ||
+        !this.client.defaults.headers["Authorization"].includes("Bearer")
+      ) {
+        await this.authenticate();
+      }
+      // Siigo no expone /facturas; usar listado filtrado si está disponible
+      const res = await this.client.get(
+        `/v1/invoices?number=${encodeURIComponent(String(numero))}`,
+      );
+      const items = res.data?.results || res.data || [];
+      return Array.isArray(items) ? items[0] : items;
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
       throw new Error(`Error obteniendo factura: ${message}`);
@@ -649,22 +751,17 @@ export class SigoService {
   }
 
   /**
-   * Actualizar estado de factura
+   * Actualizar estado de factura (no hay endpoint público directo; placeholder)
    */
   async updateInvoiceStatus(
-    serie: string,
-    numero: string | number,
-    status: InvoiceStatus,
+    _serie: string,
+    _numero: string | number,
+    _status: InvoiceStatus,
   ): Promise<any> {
     try {
-      const response = await this.client.patch(
-        `/facturas/${serie}/${numero}/estado`,
-        {
-          estado: status,
-        },
+      throw new Error(
+        "updateInvoiceStatus no está soportado por el API público de Siigo",
       );
-
-      return response.data;
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
       throw new Error(`Error actualizando estado de factura: ${message}`);
@@ -672,40 +769,34 @@ export class SigoService {
   }
 
   /**
-   * Enviar factura a SUNAT/DIAN
+   * Enviar factura a SUNAT/DIAN (no expuesto como endpoint público en Siigo)
    */
   async sendInvoiceToSunat(
-    serie: string,
-    numero: string | number,
+    _serie: string,
+    _numero: string | number,
   ): Promise<any> {
     try {
-      const response = await this.client.post(
-        `/facturas/${serie}/${numero}/enviar-sunat`,
+      throw new Error(
+        "sendInvoiceToSunat no está soportado por el API público de Siigo",
       );
-      return response.data;
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
-      throw new Error(`Error enviando factura a SUNAT: ${message}`);
+      throw new Error(`Error enviando factura a SUNAT/DIAN: ${message}`);
     }
   }
 
   /**
-   * Anular factura
+   * Anular factura (usar notas crédito según procesos de Siigo)
    */
   async cancelInvoice(
-    serie: string,
-    numero: string | number,
-    motivo: string,
+    _serie: string,
+    _numero: string | number,
+    _motivo: string,
   ): Promise<any> {
     try {
-      const response = await this.client.post(
-        `/facturas/${serie}/${numero}/anular`,
-        {
-          motivo: motivo,
-        },
+      throw new Error(
+        "cancelInvoice no está soportado directamente; use nota crédito en Siigo",
       );
-
-      return response.data;
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
       throw new Error(`Error anulando factura: ${message}`);
@@ -713,14 +804,12 @@ export class SigoService {
   }
 
   /**
-   * Obtener estado de factura
+   * Obtener estado de factura (consultar invoice por id/number)
    */
   async getInvoiceStatus(serie: string, numero: string | number): Promise<any> {
     try {
-      const response = await this.client.get(
-        `/facturas/${serie}/${numero}/estado`,
-      );
-      return response.data;
+      const inv = await this.getInvoice(serie, numero);
+      return inv?.status || inv?.state || inv;
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
       throw new Error(`Error obteniendo estado de factura: ${message}`);
@@ -728,7 +817,37 @@ export class SigoService {
   }
 
   /**
-   * Buscar clientes con filtros
+   * Listar facturas (paginado)
+   */
+  async listInvoices(
+    params: { page?: number; limit?: number; number?: string; state?: string },
+    credentials?: any,
+  ): Promise<any> {
+    try {
+      if (
+        !this.client.defaults.headers["Authorization"] ||
+        !this.client.defaults.headers["Authorization"].includes("Bearer")
+      ) {
+        await this.authenticate(credentials);
+      }
+
+      const qp = new URLSearchParams({
+        page: String(params.page || 1),
+        page_size: String(params.limit || 20),
+      });
+      if (params.number) qp.append("number", params.number);
+      if (params.state) qp.append("state", params.state);
+
+      const res = await this.client.get(`/v1/invoices?${qp.toString()}`);
+      return res.data;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      throw new Error(`Error listando facturas: ${message}`);
+    }
+  }
+
+  /**
+   * Buscar clientes por nombre o identificación
    */
   async searchClients(
     params: {
@@ -737,33 +856,38 @@ export class SigoService {
       limit?: number;
       tipoDocumento?: string;
     },
-    credentials?: any
+    credentials?: any,
   ): Promise<any> {
     try {
-      const apiCredentials = credentials || this.getDefaultCredentials();
-      
-      const queryParams = new URLSearchParams({
-        q: params.query,
-        page: (params.page || 1).toString(),
-        limit: (params.limit || 20).toString(),
-        ...(params.tipoDocumento && { tipoDocumento: params.tipoDocumento })
+      if (
+        !this.client.defaults.headers["Authorization"] ||
+        !this.client.defaults.headers["Authorization"].includes("Bearer")
+      ) {
+        await this.authenticate(credentials);
+      }
+
+      const qp = new URLSearchParams({
+        page: String(params.page || 1),
+        page_size: String(params.limit || 20),
       });
 
-      const response = await this.request({
-        method: "GET",
-        endpoint: `/clientes/search?${queryParams.toString()}`,
-        credentials: apiCredentials
-      });
+      // Si es numérico, buscar por identificación; si no, por nombre
+      if (/^\d+$/.test(params.query)) {
+        qp.append("identification", params.query);
+      } else {
+        qp.append("name", params.query);
+      }
 
-      return response;
+      const res = await this.client.get(`/v1/customers?${qp.toString()}`);
+      return res.data;
     } catch (error) {
-      this.logger.error("Error buscando clientes:", error);
-      throw error;
+      const message = error instanceof Error ? error.message : "Unknown error";
+      throw new Error(`Error buscando clientes: ${message}`);
     }
   }
 
   /**
-   * Obtener lista paginada de clientes
+   * Listado de clientes (paginado)
    */
   async getClientList(
     params: {
@@ -772,130 +896,159 @@ export class SigoService {
       tipoDocumento?: string;
       activo?: boolean;
     },
-    credentials?: any
+    credentials?: any,
   ): Promise<any> {
     try {
-      const apiCredentials = credentials || this.getDefaultCredentials();
-      
-      const queryParams = new URLSearchParams({
-        page: (params.page || 1).toString(),
-        limit: (params.limit || 20).toString(),
-        ...(params.tipoDocumento && { tipoDocumento: params.tipoDocumento }),
-        ...(params.activo !== undefined && { activo: params.activo.toString() })
-      });
+      if (
+        !this.client.defaults.headers["Authorization"] ||
+        !this.client.defaults.headers["Authorization"].includes("Bearer")
+      ) {
+        await this.authenticate(credentials);
+      }
 
-      const response = await this.request({
-        method: "GET",
-        endpoint: `/clientes?${queryParams.toString()}`,
-        credentials: apiCredentials
+      const qp = new URLSearchParams({
+        page: String(params.page || 1),
+        page_size: String(params.limit || 20),
       });
+      if (params.tipoDocumento)
+        qp.append(
+          "id_type",
+          String(this.mapTipoDocumentoToIdType(params.tipoDocumento)),
+        );
+      if (typeof params.activo === "boolean")
+        qp.append("active", params.activo ? "true" : "false");
 
-      return response;
+      const res = await this.client.get(`/v1/customers?${qp.toString()}`);
+      return res.data;
     } catch (error) {
-      this.logger.error("Error obteniendo lista de clientes:", error);
-      throw error;
+      const message = error instanceof Error ? error.message : "Unknown error";
+      throw new Error(`Error listando clientes: ${message}`);
     }
   }
 
   /**
-   * Health check del servicio SIGO
+   * Health check contra Siigo
    */
   async healthCheck(): Promise<HealthCheckResult> {
-    const startTime = Date.now();
+    const start = Date.now();
     try {
-      await this.client.get("/health", { timeout: 5000 }).catch(() => {
-        return this.client.get("/status", { timeout: 5000 }).catch(() => {
-          return this.client.get("/", { timeout: 5000 });
-        });
-      });
+      if (
+        !this.client.defaults.headers["Authorization"] ||
+        !this.client.defaults.headers["Authorization"].includes("Bearer")
+      ) {
+        await this.authenticate();
+      }
 
-      const responseTime = Date.now() - startTime;
+      await this.client.get("/v1/customers?page=1&page_size=1");
 
       return {
         status: "healthy",
         timestamp: new Date().toISOString(),
-        services: {
-          sigo: "up",
-          database: "up",
-          webhook: "up",
-        },
-        response_time_ms: responseTime,
-      };
+        services: { sigo: "up" },
+        response_time_ms: Date.now() - start,
+      } as HealthCheckResult;
     } catch (error) {
       return {
         status: "unhealthy",
         timestamp: new Date().toISOString(),
-        services: {
-          sigo: "down",
-          database: "up",
-          webhook: "up",
-        },
-        response_time_ms: Date.now() - startTime,
-        errors: [
-          error instanceof Error
-            ? error.message
-            : "Unknown error connecting to SIGO",
-        ],
-      };
+        services: { sigo: "down" },
+        response_time_ms: Date.now() - start,
+        errors: [error instanceof Error ? error.message : "Unknown error"],
+      } as HealthCheckResult;
     }
   }
 
   /**
-   * Obtener configuración actual
+   * Crear Nota de Crédito para anular una factura por serie/número (anulación total)
    */
-  getConfig(): SigoConfig {
-    return {
-      baseUrl: this.baseURL,
-      baseURL: this.baseURL,
-      apiKey: this.apiKey || "",
-      username: this.username,
-      password: this.password ? "***" : undefined,
-      timeout: 30000,
-      retries: 3,
-      ivaRate: this.ivaRate,
-      defaultCurrency: this.defaultCurrency,
-      defaultSerie: this.defaultSerie,
-    };
-  }
+  async createCreditNoteByInvoiceNumber(
+    serie: string,
+    numero: string | number,
+    motivo?: string,
+    dynamicCredentials?: { apiKey?: string; username?: string },
+  ): Promise<any> {
+    try {
+      if (
+        !this.client.defaults.headers["Authorization"] ||
+        !this.client.defaults.headers["Authorization"].includes("Bearer")
+      ) {
+        await this.authenticate(dynamicCredentials);
+      }
 
-  /**
-   * Obtener credenciales por defecto
-   */
-  private getDefaultCredentials(): any {
-    return {
-      apiKey: process.env.SIGO_API_KEY,
-      apiSecret: process.env.SIGO_API_SECRET,
-      // Add other default credentials as needed
-    };
+      const inv = await this.getInvoice(serie, numero);
+      if (!inv || !inv.id) {
+        throw new Error(
+          "Factura no encontrada en Siigo para emitir nota de crédito",
+        );
+      }
+
+      const CREDIT_NOTE_DOC_ID = parseInt(
+        process.env.SIIGO_CREDIT_NOTE_DOCUMENT_ID || "2",
+        10,
+      );
+      const TAX_ID = parseInt(process.env.SIIGO_TAX_ID || "13156", 10);
+
+      // Mejor esfuerzo para mapear items del invoice a la nota de crédito
+      const itemsSrc: any[] = inv.items || inv?.document_items || [];
+      const cnItems =
+        Array.isArray(itemsSrc) && itemsSrc.length > 0
+          ? itemsSrc.map((it: any) => ({
+              code: it.code || it.codigo || it.product_code || "PROD001",
+              description:
+                it.description || it.descripcion || it.name || "Item",
+              quantity: it.quantity || it.cantidad || 1,
+              price: it.price || it.precio_unitario || it.unit_price || 0,
+              discount: 0,
+              taxes: [{ id: TAX_ID }],
+            }))
+          : undefined;
+
+      const payload: any = {
+        document: { id: CREDIT_NOTE_DOC_ID },
+        date: new Date().toISOString().split("T")[0],
+        customer: {
+          identification:
+            inv?.customer?.identification ||
+            inv?.customer_identification ||
+            inv?.cliente?.nit ||
+            inv?.customer_id ||
+            "",
+          branch_office: 0,
+        },
+        invoice: { id: inv.id },
+        observations: motivo || "Anulación total por solicitud del cliente",
+      };
+
+      if (cnItems) payload.items = cnItems;
+
+      this.logger.info(
+        `✅ Creando nota de crédito en Siigo para factura ${serie}-${numero}`,
+      );
+      const response = await this.client.post("/v1/credit-notes", payload);
+      this.logger.info(
+        `✅ Nota de crédito creada: ${response.data?.id || "(sin id)"}`,
+      );
+      return response.data;
+    } catch (error: any) {
+      console.error(
+        `❌ Error creando nota de crédito en Siigo:`,
+        error.response?.data || error.message,
+      );
+      throw new Error(
+        `Error creando nota de crédito: ${error.response?.data?.message || error.message}`,
+      );
+    }
   }
 }
 
-export function getSigoService(): SigoService {
-  return new SigoService();
-}
-
-let sigoServiceInstance: SigoService | null = null;
+// Singleton para compatibilidad con los controllers existentes
+let _sigoInstance: SigoService | null = null;
 export const sigoService = {
   getInstance(): SigoService {
-    if (!sigoServiceInstance) {
-      sigoServiceInstance = new SigoService();
+    if (!_sigoInstance) {
+      _sigoInstance = new SigoService();
     }
-    return sigoServiceInstance;
-  },
-  async createInvoice(
-    data: any,
-    creds?: { apiKey?: string; username?: string },
-  ) {
-    return this.getInstance().createInvoice(data, creds as any);
-  },
-  async createClient(
-    data: any,
-    creds?: { apiKey?: string; username?: string },
-  ) {
-    return this.getInstance().createClient(data, creds as any);
-  },
-  async healthCheck() {
-    return this.getInstance().healthCheck();
+    return _sigoInstance;
   },
 };
 
