@@ -115,7 +115,6 @@ export class MetricsCollector {
     const metricsList = this.metrics.get(name)!;
     metricsList.push(metric);
 
-
     if (metricsList.length > this.maxMetricsPerKey) {
       metricsList.shift();
     }
@@ -128,11 +127,9 @@ export class MetricsCollector {
     const timestamp = Date.now();
     const metrics: Record<string, Metric[]> = {};
 
-
     for (const [name, metricsList] of this.metrics) {
       metrics[name] = [...metricsList];
     }
-
 
     const summary = this.calculateSummary();
 
@@ -182,7 +179,6 @@ export class MetricsCollector {
    * Limpia métricas antiguas (más de X tiempo)
    */
   cleanup(olderThanMs: number = 3600000): void {
-
     const cutoffTime = Date.now() - olderThanMs;
 
     for (const [name, metricsList] of this.metrics) {
@@ -387,7 +383,6 @@ export function metricsMiddleware(req: any, res: any, next: any): void {
     path: req.route?.path || req.path,
     user_agent: req.get("User-Agent")?.substring(0, 50) || "unknown",
   });
-
 
   const originalEnd = res.end;
   res.end = function (...args: any[]) {

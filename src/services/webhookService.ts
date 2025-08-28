@@ -53,28 +53,88 @@ export class WebhookService {
   }
 
   /**
-   * Enviar confirmación de factura creada al Hub Central
+   * Enviar confirmación de factura creada al Hub Central (con fetch y reintentos)
+   * Cumple con el contrato esperado por los tests y el Hub Central.
    */
-  async enviarFacturaCreada(facturaData: any): Promise<void> {
-    const webhookUrl = process.env.HUB_CENTRAL_WEBHOOK_URL;
-    if (!webhookUrl) {
-      console.warn("HUB_CENTRAL_WEBHOOK_URL no configurada");
-      return;
+  async enviarFacturaCreada(facturaData: any): Promise<boolean> {
+    const hubUrl = process.env.HUB_CENTRAL_URL;
+    const secret = process.env.APISIGO_WEBHOOK_SECRET;
+
+    if (!hubUrl) {
+      throw new Error("URL de Hub Central no configurada");
+    }
+    if (!secret) {
+      throw new Error("Secret de webhook no configurado");
     }
 
+    // Validación mínima de datos requeridos
+    const required = [
+      "factura_id",
+      "documento_sigo_id",
+      "numero_documento",
+      "estado",
+      "pdf_url",
+      "xml_url",
+    ];
+    const missing = required.filter((k) => facturaData[k] === undefined);
+    if (missing.length > 0) {
+      throw new Error("Datos de factura incompletos");
+    }
+
+    const url = `${hubUrl}/webhooks/apisigo`;
     const payload = {
-      evento: "factura.creada",
+      event_type: "factura.creada",
+      event_id: `factura_${Date.now()}`,
       timestamp: new Date().toISOString(),
-      datos: {
+      source: "apisigo",
+      data: {
         factura_id: facturaData.factura_id,
-        sigo_id: facturaData.sigo_id,
-        serie: facturaData.serie,
-        numero: facturaData.numero,
+        documento_sigo_id: facturaData.documento_sigo_id,
+        numero_documento: facturaData.numero_documento,
         estado: facturaData.estado,
+        orden_graf: facturaData.orden_graf,
+        monto_facturado: facturaData.monto_facturado,
+        pdf_url: facturaData.pdf_url,
+        xml_url: facturaData.xml_url,
       },
     };
 
-    await this.enviarWebhookConReintentos(webhookUrl, payload);
+    const signature = this.generarFirmaHMAC(payload, secret);
+
+    const tryOnce = async () => {
+      const res = await (global as any).fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "User-Agent": "ApiSigo-Webhook/1.0",
+          "x-apisigo-signature": `sha256=${signature}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`HTTP ${res.status}: ${text}`);
+      }
+      return true;
+    };
+
+    // Reintentos exponenciales: 1s, 2s
+    const delays = [1000, 2000];
+    try {
+      return await tryOnce();
+    } catch (e1) {
+      try {
+        await this.wait(delays[0]);
+        return await tryOnce();
+      } catch (e2) {
+        try {
+          await this.wait(delays[1]);
+          return await tryOnce();
+        } catch (e3) {
+          return false;
+        }
+      }
+    }
   }
 
   /**
@@ -152,14 +212,12 @@ export class WebhookService {
           },
         );
 
-
         if (attempt < maxIntentos) {
           const delay = delayBase * Math.pow(2, attempt - 1);
           await this.wait(delay);
         }
       }
     }
-
 
     throw lastError || new Error("Todos los reintentos fallaron");
   }
@@ -237,7 +295,6 @@ export class WebhookService {
     try {
       this.validateConfig();
 
-
       const healthUrl = `${this.hubCentralUrl}/api/v1/health`;
       const response = await this.client.get(healthUrl, { timeout: 5000 });
 
@@ -311,7 +368,6 @@ export class WebhookService {
    * Obtener estadísticas de webhooks
    */
   getStats(): any {
-
     return {
       total_sent: 0,
       successful: 0,
@@ -331,10 +387,10 @@ export class WebhookService {
     details: any,
   ): void {
     console.log(`[WEBHOOK] ${event.toUpperCase()}: ${status}`, details);
-
   }
 }
 
-
 export const webhookService = new WebhookService();
 export default webhookService;
+// CommonJS compat para tests que usan require()
+(module as any).exports = webhookService;

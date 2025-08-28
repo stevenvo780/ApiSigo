@@ -55,7 +55,6 @@ export class CircuitBreaker {
   private nextAttempt: number = 0;
   private currentTimeout: number;
 
-
   private totalRequests: number = 0;
   private totalFailures: number = 0;
   private totalSuccesses: number = 0;
@@ -75,12 +74,10 @@ export class CircuitBreaker {
   async execute<T>(fn: () => Promise<T>): Promise<T> {
     this.totalRequests++;
 
-
     if (this.state === CircuitState.OPEN) {
       if (Date.now() < this.nextAttempt) {
         throw new CircuitOpenError(this.serviceName, this.nextAttempt);
       }
-
 
       this.state = CircuitState.HALF_OPEN;
       this.successCount = 0;
@@ -131,7 +128,6 @@ export class CircuitBreaker {
     ) {
       this.state = CircuitState.OPEN;
       this.nextAttempt = Date.now() + this.currentTimeout;
-
 
       this.currentTimeout = Math.min(
         this.currentTimeout * this.options.resetTimeoutMultiplier,

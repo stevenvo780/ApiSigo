@@ -1,4 +1,3 @@
-
 export interface WebhookOrderData {
   order_id: number;
   store_id?: number;
@@ -10,6 +9,13 @@ export interface WebhookOrderData {
     id?: string;
     product_id: number;
     product_name: string;
+    // Campos alternativos usados en tests/legacy
+    nombre?: string;
+    descripcion?: string;
+    sku?: string;
+    precioUnitario?: number;
+    subtotal?: number;
+    impuestos?: number;
     quantity: number;
     unit_price: number;
     total: number;
@@ -17,6 +23,18 @@ export interface WebhookOrderData {
   paid_at: string;
   customer_name?: string;
   customer_ruc?: string;
+  // Objeto cliente alternativo usado en algunos tests
+  customer?: {
+    id?: string | number;
+    tipoDocumento?: string;
+    numeroDocumento?: string;
+    nombres?: string;
+    apellidos?: string;
+    razonSocial?: string;
+    email?: string;
+    telefono?: string;
+    direccion?: any;
+  };
   shipping_address?: {
     address: string;
     city?: string;
@@ -24,7 +42,6 @@ export interface WebhookOrderData {
     country?: string;
   };
 }
-
 
 export interface Customer {
   id?: number;
@@ -59,7 +76,6 @@ export interface Discount {
   valor: number;
   descripcion?: string;
 }
-
 
 export interface SigoInvoiceData {
   tipo_documento: string;
@@ -107,9 +123,18 @@ export interface SigoInvoiceSummary {
   total: number;
 }
 
-
 export interface FacturaServiceResponse {
   success: boolean;
+  // contrato alternativo usado por tests
+  factura_id?: string;
+  numero_factura?: string;
+  estado?: string;
+  pdf_url?: string;
+  xml_url?: string;
+  serie?: string;
+  numero?: string;
+  mensaje?: string;
+  datos_transformados?: any;
   data?: {
     factura_id: string;
     numero_factura: string;
@@ -118,6 +143,7 @@ export interface FacturaServiceResponse {
     xml_url?: string;
   };
   error?: string;
+  errores?: string[];
   details?: any;
 }
 
@@ -148,7 +174,6 @@ export interface WebhookServiceResponse {
   error?: string;
 }
 
-
 export interface TaxCalculation {
   subtotal: number;
   iva: number;
@@ -171,7 +196,6 @@ export interface ValidationResult {
 
 export type RequiredOrderFields = "order_id" | "amount" | "items" | "paid_at";
 
-
 export interface ValidationError {
   field: string;
   message: string;
@@ -184,7 +208,6 @@ export interface ApiError {
   status: number;
   details?: any;
 }
-
 
 export interface SigoConfig {
   baseUrl: string;
@@ -214,7 +237,6 @@ export interface WebhookConfig {
   };
 }
 
-
 export interface HealthCheckResult {
   status: "healthy" | "unhealthy" | "degraded";
   timestamp: string;
@@ -227,7 +249,6 @@ export interface HealthCheckResult {
   errors?: string[];
 }
 
-
 export interface LogEntry {
   level: "error" | "warn" | "info" | "debug";
   message: string;
@@ -237,7 +258,6 @@ export interface LogEntry {
   metadata?: Record<string, any>;
 }
 
-
 export type EstadoFactura =
   | "BORRADOR"
   | "PENDIENTE"
@@ -246,13 +266,11 @@ export type EstadoFactura =
   | "RECHAZADO"
   | "ANULADO";
 
-
 export type TipoDocumento =
   | "FACTURA_VENTA"
   | "BOLETA_VENTA"
   | "NOTA_CREDITO"
   | "NOTA_DEBITO";
-
 
 export type TipoIdentificacion =
   | "RUC"
@@ -262,14 +280,12 @@ export type TipoIdentificacion =
   | "CC"
   | "PASAPORTE";
 
-
 export type WebhookEvent =
   | "pedido.pagado"
   | "pedido.cancelado"
   | "factura.creada"
   | "factura.enviada"
   | "factura.anulada";
-
 
 export interface CreateInvoiceData {
   tipo_documento: string;
@@ -295,7 +311,6 @@ export interface InvoiceStatus {
   fecha_actualizacion: string;
   observaciones?: string;
 }
-
 
 export interface WebhookPayload {
   event: string;

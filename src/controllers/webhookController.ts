@@ -1,21 +1,11 @@
 import { Request, Response, NextFunction } from "express";
-import { body, header, validationResult } from "express-validator";
+import { body, validationResult } from "express-validator";
 import crypto from "crypto";
 import { facturaService } from "@/services/facturaService";
-import { webhookService } from "@/services/webhookService";
+import webhookService from "@/services/webhookService";
 import { WebhookOrderData } from "@/types";
 
-
-export const validateWebhook = [
-
-
-
-
-
-
-
-];
-
+export const validateWebhook = [];
 
 export const validateWebhookRetry = [
   body("webhookId").notEmpty().withMessage("ID del webhook es requerido"),
@@ -28,7 +18,6 @@ export interface WebhookRequest extends Request {
     order?: WebhookOrderData;
     event_type?: string;
     data?: {
-
       order_id: number;
       store_id: number;
       customer_id?: number;
@@ -121,10 +110,6 @@ export const verifySignature = (
       return;
     }
 
-
-
-
-
     const headerApiKey = (req.headers["x-api-key"] as string) || "";
     const secret =
       process.env.APISIGO_WEBHOOK_SECRET ||
@@ -174,15 +159,15 @@ export const processOrderWebhook = async (
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      res.status(400).json({
-        error: "Datos inválidos",
-        details: errors.array(),
-      });
+      res
+        .status(400)
+        .json({ error: "Datos inválidos", details: errors.array() });
       return;
     }
 
-
-    const isGrafWebhook = req.body.event_type && req.body.data;
+    const isGrafWebhook = Boolean(
+      (req.body as any).event_type && (req.body as any).data,
+    );
     const webhookId = `webhook_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
     let orderData: any;
@@ -190,10 +175,9 @@ export const processOrderWebhook = async (
     let sigoCredentials: any;
 
     if (isGrafWebhook) {
-
-      const grafData = req.body.data!;
-      event = req.body.event_type!;
-      sigoCredentials = grafData.plugins_credentials?.sigo;
+      const grafData = (req.body as any).data;
+      event = (req.body as any).event_type;
+      sigoCredentials = grafData?.plugins_credentials?.sigo;
 
       console.log(
         `[${webhookId}] Procesando webhook de Graf - orden: ${grafData.order_id}, evento: ${event}`,
@@ -203,14 +187,13 @@ export const processOrderWebhook = async (
         JSON.stringify(grafData, null, 2),
       );
 
-
       orderData = {
         order_id: grafData.order_id,
         store_id: grafData.store_id,
         customer_id: grafData.customer_id || grafData.user_id,
         amount: grafData.amount,
         currency: grafData.currency || "COP",
-        items: grafData.items.map((item: any) => ({
+        items: (grafData.items || []).map((item: any) => ({
           product_id: item.product_id,
           product_name: item.product_name,
           quantity: item.quantity,
@@ -221,33 +204,35 @@ export const processOrderWebhook = async (
         customer_name: "Cliente Graf",
         shipping_address: grafData.shipping_address,
       };
-    } else { // This is the path for HubCentral
+    } else {
       const {
-        orderData: hubOrderData, // Renamed to avoid conflict with outer orderData
-        eventType: hubEventType, // Renamed for clarity
-        sigoCredentials: hubSigoCredentials, // New field
+        orderData: hubOrderData,
+        eventType,
+        sigoCredentials: hubCreds,
       } = req.body as {
         orderData: WebhookOrderData;
         eventType: string;
         sigoCredentials?: { apiKey?: string; username?: string };
       };
-      event = hubEventType;
-      sigoCredentials = hubSigoCredentials;
+      event = eventType;
+      sigoCredentials = hubCreds;
       orderData = hubOrderData;
-      // ...
-
+      console.log(
+        `[${webhookId}] Procesando webhook de HubCentral - orden: ${orderData?.order_id}, evento: ${event}`,
+      );
+    }
 
     switch (event) {
       case "order.created":
       case "order.completed":
-      case "order.paid":
+      case "order.paid": {
         try {
-
-          console.log(`[${webhookId}] DEBUG - Credenciales Sigio recibidas:`, {
+          console.log(`[${webhookId}] DEBUG - Credenciales SIGO recibidas:`, {
             hasApiKey: !!sigoCredentials?.apiKey,
             hasUsername: !!sigoCredentials?.username,
-            apiKeyStart:
-              sigoCredentials?.apiKey?.substring(0, 10) + "..." || "N/A",
+            apiKeyStart: sigoCredentials?.apiKey
+              ? `${sigoCredentials.apiKey.substring(0, 10)}...`
+              : "N/A",
           });
 
           const facturaResult = await facturaService.crearFacturaDesdeWebhook(
@@ -255,8 +240,18 @@ export const processOrderWebhook = async (
             sigoCredentials,
           );
 
+          const facturaDataForWebhook = {
+            factura_id: facturaResult.factura_id,
+            documento_sigo_id: facturaResult.sigo_id || facturaResult.factura_id,
+            numero_documento: facturaResult.numero_factura || facturaResult.numero || "001",
+            estado: facturaResult.estado || "CREADO",
+            orden_graf: orderData.order_id,
+            monto_facturado: orderData.amount,
+            pdf_url: facturaResult.pdf_url || "",
+            xml_url: facturaResult.xml_url || "",
+          };
 
-          await webhookService.enviarFacturaCreada(facturaResult);
+          await webhookService.enviarFacturaCreada(facturaDataForWebhook);
 
           res.status(200).json({
             success: true,
@@ -270,8 +265,6 @@ export const processOrderWebhook = async (
           });
         } catch (facturaError) {
           console.error(`[${webhookId}] Error creando factura:`, facturaError);
-
-
           await webhookService.enviarError(orderData.order_id, {
             error: "Error creando factura",
             details:
@@ -279,7 +272,6 @@ export const processOrderWebhook = async (
                 ? facturaError.message
                 : "Unknown error",
           });
-
           res.status(500).json({
             error: "Error procesando la orden",
             webhookId,
@@ -290,10 +282,10 @@ export const processOrderWebhook = async (
           });
         }
         break;
+      }
 
       case "order.cancelled":
-      case "order.canceled":
-
+      case "order.canceled": {
         const cancelOrderId = orderData.order_id;
         console.log(
           `[${webhookId}] Procesando cancelación de orden: ${cancelOrderId}`,
@@ -301,16 +293,12 @@ export const processOrderWebhook = async (
         res.status(200).json({
           success: true,
           message: "Cancelación procesada",
-          data: {
-            webhookId,
-            orderId: cancelOrderId,
-            event,
-          },
+          data: { webhookId, orderId: cancelOrderId, event },
         });
         break;
+      }
 
-      case "order.refunded":
-
+      case "order.refunded": {
         const refundOrderId = orderData.order_id;
         console.log(
           `[${webhookId}] Procesando reembolso de orden: ${refundOrderId}`,
@@ -318,20 +306,14 @@ export const processOrderWebhook = async (
         res.status(200).json({
           success: true,
           message: "Reembolso procesado",
-          data: {
-            webhookId,
-            orderId: refundOrderId,
-            event,
-          },
+          data: { webhookId, orderId: refundOrderId, event },
         });
         break;
+      }
 
       default:
         console.log(`[${webhookId}] Evento no reconocido: ${event}`);
-        res.status(400).json({
-          error: "Tipo de evento no soportado",
-          event,
-        });
+        res.status(400).json({ error: "Tipo de evento no soportado", event });
     }
   } catch (error) {
     next(error);
@@ -393,7 +375,6 @@ export const getWebhookStatus = async (
   try {
     const { webhookId } = req.params;
 
-
     res.json({
       success: true,
       data: {
@@ -421,7 +402,6 @@ export const getPendingWebhooks = async (
   try {
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 20;
-
 
     res.json({
       success: true,

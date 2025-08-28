@@ -4,7 +4,6 @@ import { sigoService } from "@/services/sigoService";
 import { CreateInvoiceData } from "@/services/sigoService";
 import { InvoiceStatus } from "@/types";
 
-
 export const validateInvoice = [
   body("serie").notEmpty().withMessage("Serie es requerida"),
   body("numero")
@@ -41,7 +40,6 @@ export const validateInvoice = [
     .withMessage("Total debe ser mayor a 0"),
 ];
 
-
 export const validateInvoiceParams = [
   param("serie").notEmpty().withMessage("Serie es requerida"),
   param("numero")
@@ -49,13 +47,11 @@ export const validateInvoiceParams = [
     .withMessage("Número debe ser un entero positivo"),
 ];
 
-
 export const validateStatus = [
   body("estado")
     .isIn(["PENDIENTE", "ENVIADO", "ACEPTADO", "RECHAZADO", "ANULADO"])
     .withMessage("Estado debe ser válido"),
 ];
-
 
 export const validateCancelReason = [
   body("motivo")
@@ -322,7 +318,6 @@ export const getInvoices = async (
     const serie = req.query.serie as string;
     const estado = req.query.estado as string;
 
-
     res.json({
       success: true,
       data: {
@@ -355,9 +350,7 @@ export const resendInvoice = async (
   try {
     const { serie, numero } = req.params;
 
-
     const invoice = await sigoService.getInstance().getInvoice(serie, numero);
-
 
     const result = await sigoService
       .getInstance()

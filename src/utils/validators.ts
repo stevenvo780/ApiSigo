@@ -44,7 +44,6 @@ export function validateSigoApiKey(apiKey?: string): ValidationResult {
     };
   }
 
-
   if (apiKey === "default-api-key" || apiKey === "your-api-key-here") {
     return {
       isValid: false,
@@ -52,7 +51,6 @@ export function validateSigoApiKey(apiKey?: string): ValidationResult {
       details: "Debe configurar una API key real de Siigo",
     };
   }
-
 
   const validChars = /^[a-zA-Z0-9\-_\.=]+$/;
   if (!validChars.test(apiKey)) {
@@ -102,7 +100,6 @@ export function validateSigoUsername(username?: string): ValidationResult {
     };
   }
 
-
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (username.includes("@") && !emailRegex.test(username)) {
     return {
@@ -151,7 +148,6 @@ export function validateSoftiaApiKey(apiKey?: string): ValidationResult {
     };
   }
 
-
   if (apiKey === "default-api-key" || apiKey === "your-api-key-here") {
     return {
       isValid: false,
@@ -189,7 +185,6 @@ export function validateApiUrl(
   try {
     const parsedUrl = new URL(url);
 
-
     if (!["http:", "https:"].includes(parsedUrl.protocol)) {
       return {
         isValid: false,
@@ -198,7 +193,6 @@ export function validateApiUrl(
       };
     }
 
-
     if (!parsedUrl.hostname) {
       return {
         isValid: false,
@@ -206,7 +200,6 @@ export function validateApiUrl(
         details: "URL debe tener un hostname válido",
       };
     }
-
 
     if (
       process.env.NODE_ENV === "production" &&
@@ -315,7 +308,6 @@ export function validateWebhookSecret(secret?: string): ValidationResult {
       details: "Webhook secret debe tener al menos 16 caracteres",
     };
   }
-
 
   if (secret === "default-secret" || secret === "your-secret-here") {
     return {

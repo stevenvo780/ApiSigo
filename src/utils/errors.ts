@@ -37,7 +37,6 @@ export class IntegrationError extends Error {
     this.context = context;
     this.retryable = options.retryable ?? false;
 
-
     if (options.originalError && options.originalError.stack) {
       this.stack = options.originalError.stack;
     }

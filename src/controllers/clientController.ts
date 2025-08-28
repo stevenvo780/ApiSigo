@@ -3,7 +3,6 @@ import { body, param, validationResult } from "express-validator";
 import { sigoService } from "@/services/sigoService";
 import { CreateClientData } from "@/services/sigoService";
 
-
 export const validateClient = [
   body("tipoDocumento")
     .isIn(["RUC", "DNI", "CE", "NIT", "CC"])
@@ -38,7 +37,6 @@ export const validateClient = [
     .isLength({ max: 10 })
     .withMessage("Código postal no debe exceder 10 caracteres"),
 ];
-
 
 export const validateClientParams = [
   param("tipoDocumento")
@@ -86,11 +84,13 @@ export const createClient = async (
 
     // Validate customerData if needed, or rely on sigoService validation
     if (!customerData) {
-        res.status(400).json({ error: "customerData is required" });
-        return;
+      res.status(400).json({ error: "customerData is required" });
+      return;
     }
 
-    const result = await sigoService.getInstance().createClient(customerData, sigoCredentials); // Pass credentials
+    const result = await sigoService
+      .getInstance()
+      .createClient(customerData, sigoCredentials); // Pass credentials
 
     res.status(201).json({
       success: true,
@@ -318,7 +318,6 @@ export const validateClientDocument = async (
       });
       return;
     }
-
 
     let isValid = false;
     let mensaje = "";

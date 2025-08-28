@@ -113,9 +113,6 @@ export class SigoService {
   private logger = LoggerFactory.getSigoLogger();
 
   constructor() {
-
-
-
     console.log("🔍 [SigoService] Debug environment variables:");
     console.log("  Working directory:", process.cwd());
     console.log("  MOCK_MODE:", process.env.MOCK_MODE || "false");
@@ -134,7 +131,8 @@ export class SigoService {
     this.apiKey = process.env.SIGO_API_KEY;
     this.username = process.env.SIGO_USERNAME;
     this.password = process.env.SIGO_PASSWORD;
-    this.mockMode = process.env.MOCK_MODE === "true" || process.env.NODE_ENV === "test";
+    this.mockMode =
+      process.env.MOCK_MODE === "true" || process.env.NODE_ENV === "test";
 
     this.ivaRate = parseFloat(process.env.IVA_COLOMBIA || "19");
     this.defaultCurrency = process.env.MONEDA_DEFAULT || "COP";
@@ -172,7 +170,7 @@ export class SigoService {
           headers: error.config?.headers,
           requestBody: error.config?.data,
           errorCode: error.code,
-          errorStack: error.stack
+          errorStack: error.stack,
         });
         throw error;
       },
@@ -190,13 +188,10 @@ export class SigoService {
     const executeAuth = async () => {
       const startTime = Date.now();
       try {
-
         ApiMetrics.recordRequest("sigo", "authenticate");
-
 
         const username = dynamicCredentials?.username || this.username;
         const apiKey = dynamicCredentials?.apiKey || this.apiKey;
-
 
         const usernameValidation = validateSigoUsername(username);
         if (!usernameValidation.isValid) {
@@ -222,7 +217,7 @@ export class SigoService {
         });
 
         const authTimeouts = getTimeoutConfig("sigo", "authentication");
-        
+
         console.log("🔍 [AUTH DEBUG] Making authentication request:", {
           url: this.baseURL + "/auth",
           method: "POST",
@@ -231,9 +226,9 @@ export class SigoService {
             access_key: apiKey?.substring(0, 10) + "...",
           },
           timeout: authTimeouts.total,
-          headers: this.client.defaults.headers
+          headers: this.client.defaults.headers,
         });
-        
+
         const response = await this.client.post(
           "/auth",
           {
@@ -253,7 +248,6 @@ export class SigoService {
           this.logger.auth(true, "sigo", duration, {
             metadata: { tokenReceived: true },
           });
-
 
           ApiMetrics.recordAuthentication("sigo", true, duration);
           ApiMetrics.recordResponse(
@@ -276,12 +270,11 @@ export class SigoService {
           requestConfig: {
             url: error.config?.url,
             method: error.config?.method,
-            timeout: error.config?.timeout
-          }
+            timeout: error.config?.timeout,
+          },
         });
-        
-        const duration = Date.now() - startTime;
 
+        const duration = Date.now() - startTime;
 
         this.logger.auth(false, "sigo", duration, {
           error: error as Error,
@@ -291,7 +284,6 @@ export class SigoService {
             errorType: error.name || "AuthError",
           },
         });
-
 
         ApiMetrics.recordAuthentication("sigo", false, duration);
         ApiMetrics.recordError(
@@ -317,7 +309,7 @@ export class SigoService {
         throw authError;
       }
     };
-    
+
     return executeAuth();
   }
 
@@ -329,7 +321,6 @@ export class SigoService {
     dynamicCredentials?: { apiKey?: string; username?: string },
   ): Promise<any> {
     try {
-
       if (
         !this.client.defaults.headers["Authorization"] ||
         !this.client.defaults.headers["Authorization"].includes("Bearer")
@@ -401,36 +392,40 @@ export class SigoService {
   ): Promise<SigoApiResponse> {
     // Return mock response if in mock mode
     if (this.mockMode) {
-      console.log("✅ [MOCK MODE] Creando factura mock - no se conectará a Siigo real");
+      console.log(
+        "✅ [MOCK MODE] Creando factura mock - no se conectará a Siigo real",
+      );
       const mockInvoice = {
         success: true,
         data: {
           id: `INV-${Date.now()}`,
           serie: (invoiceData as CreateInvoiceData).serie || "F001",
-          numero: (invoiceData as CreateInvoiceData).numero || Math.floor(Math.random() * 10000) + 1,
-          fecha_emision: new Date().toISOString().split('T')[0],
+          numero:
+            (invoiceData as CreateInvoiceData).numero ||
+            Math.floor(Math.random() * 10000) + 1,
+          fecha_emision: new Date().toISOString().split("T")[0],
           total: (invoiceData as CreateInvoiceData).totales?.total || 0,
-          cliente: (invoiceData as CreateInvoiceData).cliente?.razonSocial || "Cliente Mock",
+          cliente:
+            (invoiceData as CreateInvoiceData).cliente?.razonSocial ||
+            "Cliente Mock",
           status: "MOCK_CREATED",
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         },
         message: "Factura mock creada exitosamente",
-        status_code: 201
+        status_code: 201,
       };
-      
+
       console.log(`✅ [MOCK MODE] Factura mock creada: ${mockInvoice.data.id}`);
       return mockInvoice;
     }
 
     return this.circuitBreaker.execute(async () => {
       try {
-
         const isSigoFormat = "tipo_documento" in invoiceData;
 
         let payload: any;
 
         if (isSigoFormat) {
-
           const sigoData = invoiceData as SigoInvoiceData;
           payload = {
             tipo_documento:
@@ -474,9 +469,7 @@ export class SigoService {
             },
           };
         } else {
-
           const stdData = invoiceData as CreateInvoiceData;
-
 
           const subtotal =
             stdData.totales?.subtotal || this.calculateSubtotal(stdData.items);
@@ -542,14 +535,12 @@ export class SigoService {
           };
         }
 
-
         if (
           !this.client.defaults.headers["Authorization"] ||
           !this.client.defaults.headers["Authorization"].includes("Bearer")
         ) {
           await this.authenticate(dynamicCredentials);
         }
-
 
         const sigoPayload = {
           document: {
@@ -714,9 +705,7 @@ export class SigoService {
   async healthCheck(): Promise<HealthCheckResult> {
     const startTime = Date.now();
     try {
-
       await this.client.get("/health", { timeout: 5000 }).catch(() => {
-
         return this.client.get("/status", { timeout: 5000 }).catch(() => {
           return this.client.get("/", { timeout: 5000 });
         });
@@ -824,18 +813,11 @@ export class SigoService {
       },
     };
   }
-
-  
-
-  
 }
-
-
 
 export function getSigoService(): SigoService {
   return new SigoService();
 }
-
 
 let sigoServiceInstance: SigoService | null = null;
 export const sigoService = {
@@ -844,6 +826,21 @@ export const sigoService = {
       sigoServiceInstance = new SigoService();
     }
     return sigoServiceInstance;
+  },
+  async createInvoice(
+    data: any,
+    creds?: { apiKey?: string; username?: string },
+  ) {
+    return this.getInstance().createInvoice(data, creds as any);
+  },
+  async createClient(
+    data: any,
+    creds?: { apiKey?: string; username?: string },
+  ) {
+    return this.getInstance().createClient(data, creds as any);
+  },
+  async healthCheck() {
+    return this.getInstance().healthCheck();
   },
 };
 

@@ -208,7 +208,6 @@ export class StructuredLogger {
     message: string,
     options: Partial<LogEntry> = {},
   ): void {
-
     if (level > this.config.level) {
       return;
     }
@@ -221,10 +220,8 @@ export class StructuredLogger {
       ...options,
     };
 
-
     if (entry.metadata) {
       entry.metadata = this.sanitizeMetadata(entry.metadata);
-
 
       const metadataStr = JSON.stringify(entry.metadata);
       if (metadataStr.length > this.config.maxMetadataSize) {
@@ -253,7 +250,6 @@ export class StructuredLogger {
       }
     }
 
-
     if (this.config.enableConsole) {
       this.outputConsole(entry);
     }
@@ -268,10 +264,8 @@ export class StructuredLogger {
    */
   private outputConsole(entry: LogEntry): void {
     if (this.config.enableStructured) {
-
       console.log(JSON.stringify(entry));
     } else {
-
       const levelName = LogLevel[entry.level];
       const timestamp = entry.timestamp;
       const service = entry.service;
@@ -300,7 +294,6 @@ export class StructuredLogger {
       const logLine = JSON.stringify(entry) + "\n";
       fs.appendFileSync(this.config.filePath!, logLine);
     } catch (error) {
-
       console.error("Failed to write to log file:", error);
       this.outputConsole(entry);
     }
@@ -327,7 +320,6 @@ export class StructuredLogger {
         }
       }
     }
-
 
     for (const [key, value] of Object.entries(sanitized)) {
       if (
@@ -364,7 +356,6 @@ export class StructuredLogger {
 
       return urlObj.toString();
     } catch {
-
       return url;
     }
   }

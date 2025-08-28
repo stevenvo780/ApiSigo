@@ -24,7 +24,6 @@ export const errorHandler = (
     timestamp: new Date().toISOString(),
   });
 
-
   if (error.name === "ValidationError") {
     res.status(400).json({
       success: false,
@@ -33,7 +32,6 @@ export const errorHandler = (
     });
     return;
   }
-
 
   if (error.name === "UnauthorizedError" || error.statusCode === 401) {
     res.status(401).json({
@@ -44,7 +42,6 @@ export const errorHandler = (
     return;
   }
 
-
   if (error.statusCode === 403) {
     res.status(403).json({
       success: false,
@@ -53,7 +50,6 @@ export const errorHandler = (
     });
     return;
   }
-
 
   if (error.statusCode === 404) {
     res.status(404).json({
@@ -64,7 +60,6 @@ export const errorHandler = (
     return;
   }
 
-
   if (error.statusCode === 409) {
     res.status(409).json({
       success: false,
@@ -74,7 +69,6 @@ export const errorHandler = (
     return;
   }
 
-
   if (error.statusCode === 429) {
     res.status(429).json({
       success: false,
@@ -83,7 +77,6 @@ export const errorHandler = (
     });
     return;
   }
-
 
   if (error.code === "SIGO_API_ERROR") {
     res.status(502).json({
@@ -95,7 +88,6 @@ export const errorHandler = (
     return;
   }
 
-
   if (error.code === "ECONNABORTED" || error.message.includes("timeout")) {
     res.status(504).json({
       success: false,
@@ -105,7 +97,6 @@ export const errorHandler = (
     return;
   }
 
-
   if (error.code === "ECONNREFUSED" || error.code === "ENOTFOUND") {
     res.status(503).json({
       success: false,
@@ -114,7 +105,6 @@ export const errorHandler = (
     });
     return;
   }
-
 
   const statusCode = error.statusCode || 500;
   res.status(statusCode).json({

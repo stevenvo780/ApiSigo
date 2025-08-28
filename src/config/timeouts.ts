@@ -13,14 +13,12 @@ export interface TimeoutConfig {
  * Timeouts para operaciones de Siigo API
  */
 export const SIGO_TIMEOUTS = {
-
   authentication: {
     connection: 5000,
     request: 3000,
     response: 7000,
     total: 15000,
   },
-
 
   invoice: {
     connection: 8000,
@@ -29,7 +27,6 @@ export const SIGO_TIMEOUTS = {
     total: 38000,
   },
 
-
   client: {
     connection: 6000,
     request: 4000,
@@ -37,14 +34,12 @@ export const SIGO_TIMEOUTS = {
     total: 25000,
   },
 
-
   healthCheck: {
     connection: 2000,
     request: 1000,
     response: 2000,
     total: 5000,
   },
-
 
   default: {
     connection: 5000,
@@ -58,14 +53,12 @@ export const SIGO_TIMEOUTS = {
  * Timeouts para operaciones de Softia API
  */
 export const SOFTIA_TIMEOUTS = {
-
   clientSync: {
     connection: 8000,
     request: 5000,
     response: 20000,
     total: 33000,
   },
-
 
   clientOps: {
     connection: 5000,
@@ -74,7 +67,6 @@ export const SOFTIA_TIMEOUTS = {
     total: 18000,
   },
 
-
   tags: {
     connection: 3000,
     request: 2000,
@@ -82,14 +74,12 @@ export const SOFTIA_TIMEOUTS = {
     total: 10000,
   },
 
-
   search: {
     connection: 6000,
     request: 3000,
     response: 15000,
     total: 24000,
   },
-
 
   default: {
     connection: 5000,
@@ -103,7 +93,6 @@ export const SOFTIA_TIMEOUTS = {
  * Timeouts para webhooks (deben ser rápidos)
  */
 export const WEBHOOK_TIMEOUTS = {
-
   orderProcessing: {
     connection: 3000,
     request: 2000,
@@ -111,14 +100,12 @@ export const WEBHOOK_TIMEOUTS = {
     total: 13000,
   },
 
-
   signatureValidation: {
     connection: 1000,
     request: 500,
     response: 1500,
     total: 3000,
   },
-
 
   retry: {
     connection: 5000,

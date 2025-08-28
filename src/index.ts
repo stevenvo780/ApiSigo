@@ -6,6 +6,7 @@ import dotenv from 'dotenv';
 import invoiceRoutes from '@/routes/invoiceRoutes';
 import clientRoutes from '@/routes/clientRoutes';
 import webhookRoutes from '@/routes/webhookRoutes';
+import facturasRoutes from '@/routes/facturas';
 
 
 import { 
@@ -87,6 +88,7 @@ app.get('/api', (req, res) => {
 app.use('/api/invoices', invoiceRoutes);
 app.use('/api/clients', clientRoutes);
 app.use('/api/webhooks', webhookRoutes);
+app.use('/api/facturas', facturasRoutes);
 
 
 app.get('/api/docs', (req, res) => {
@@ -193,3 +195,6 @@ if (process.env.NODE_ENV !== 'test') {
 }
 
 export default app;
+// CommonJS default export for Jest/supertest
+// @ts-ignore
+module.exports = app;
