@@ -68,7 +68,7 @@ export interface UpdateClientRequest extends ClientParamsRequest {
  * Crear cliente
  */
 export const createClient = async (
-  req: ClientRequest,
+  req: Request, // Change type to Request to allow for custom body structure
   res: Response,
   next: NextFunction,
 ): Promise<void> => {
@@ -82,8 +82,15 @@ export const createClient = async (
       return;
     }
 
-    const clientData = req.body;
-    const result = await sigoService.getInstance().createClient(clientData);
+    const { customerData, sigoCredentials } = req.body; // Extract new fields
+
+    // Validate customerData if needed, or rely on sigoService validation
+    if (!customerData) {
+        res.status(400).json({ error: "customerData is required" });
+        return;
+    }
+
+    const result = await sigoService.getInstance().createClient(customerData, sigoCredentials); // Pass credentials
 
     res.status(201).json({
       success: true,

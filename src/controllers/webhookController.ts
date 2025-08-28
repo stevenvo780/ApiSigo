@@ -221,36 +221,20 @@ export const processOrderWebhook = async (
         customer_name: "Cliente Graf",
         shipping_address: grafData.shipping_address,
       };
-    } else {
-
+    } else { // This is the path for HubCentral
       const {
-        order,
-        event: hubEvent,
-        timestamp,
-        plugins_credentials,
+        orderData: hubOrderData, // Renamed to avoid conflict with outer orderData
+        eventType: hubEventType, // Renamed for clarity
+        sigoCredentials: hubSigoCredentials, // New field
       } = req.body as {
-        order: WebhookOrderData;
-        event: string;
-        timestamp: number;
-        plugins_credentials?: {
-          sigo?: {
-            apiKey?: string;
-            username?: string;
-          };
-        };
+        orderData: WebhookOrderData;
+        eventType: string;
+        sigoCredentials?: { apiKey?: string; username?: string };
       };
-      event = hubEvent;
-      sigoCredentials = plugins_credentials?.sigo;
-      orderData = order;
-
-      console.log(
-        `[${webhookId}] Procesando webhook de HubCentral - orden: ${order.order_id}, evento: ${event}`,
-      );
-      console.log(
-        `[${webhookId}] DEBUG - Estructura del webhook de HubCentral:`,
-        JSON.stringify(order, null, 2),
-      );
-    }
+      event = hubEventType;
+      sigoCredentials = hubSigoCredentials;
+      orderData = hubOrderData;
+      // ...
 
 
     switch (event) {

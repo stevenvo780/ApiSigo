@@ -825,49 +825,9 @@ export class SigoService {
     };
   }
 
-  /**
-   * Actualizar configuración
-   */
-  updateConfig(config: Partial<SigoConfig>): void {
-    if (config.baseURL || config.baseUrl) {
-      this.baseURL = config.baseURL || config.baseUrl!;
-      this.client.defaults.baseURL = this.baseURL;
-    }
+  
 
-    if (config.apiKey) {
-      this.apiKey = config.apiKey;
-      this.client.defaults.headers["Authorization"] = `Bearer ${config.apiKey}`;
-    }
-
-    if (config.timeout) {
-      this.client.defaults.timeout = config.timeout;
-    }
-
-    if (config.ivaRate !== undefined) {
-      this.ivaRate = config.ivaRate;
-    }
-
-    if (config.defaultCurrency !== undefined) {
-      this.defaultCurrency = config.defaultCurrency;
-    }
-
-    if (config.defaultSerie !== undefined) {
-      this.defaultSerie = config.defaultSerie;
-    }
-  }
-
-  /**
-   * Verificar conectividad con SIGO
-   */
-  async testConnection(): Promise<boolean> {
-    try {
-      await this.client.get("/", { timeout: 10000 });
-      return true;
-    } catch (error) {
-      console.error("Error testing SIGO connection:", error);
-      return false;
-    }
-  }
+  
 }
 
 

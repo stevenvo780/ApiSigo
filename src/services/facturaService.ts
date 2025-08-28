@@ -93,7 +93,7 @@ export class FacturaService {
   /**
    * Validar que los datos del pedido sean correctos
    */
-  validateOrderData(orderData: WebhookOrderData): void {
+  private validateOrderData(orderData: WebhookOrderData): void {
     const required = ["order_id", "amount", "items", "paid_at"] as const;
 
     for (const field of required) {
@@ -124,7 +124,7 @@ export class FacturaService {
   /**
    * Validar datos con resultado detallado
    */
-  validateOrderDataWithResult(orderData: WebhookOrderData): any {
+  private validateOrderDataWithResult(orderData: WebhookOrderData): any {
     const errors: any[] = [];
     const required = ["order_id", "amount", "items", "paid_at"] as const;
 
@@ -200,7 +200,7 @@ export class FacturaService {
   /**
    * Transformar datos de webhook de Graf a formato SIGO (Colombia)
    */
-  transformarDatosParaSigo(webhookData: WebhookOrderData): SigoInvoiceData {
+  private transformarDatosParaSigo(webhookData: WebhookOrderData): SigoInvoiceData {
     const {
       order_id,
       store_id,
@@ -272,7 +272,7 @@ export class FacturaService {
   /**
    * Obtener RUC del cliente (con fallback a genérico)
    */
-  obtenerRucCliente(orderData: WebhookOrderData): string {
+  private obtenerRucCliente(orderData: WebhookOrderData): string {
 
 
     return (
@@ -283,7 +283,7 @@ export class FacturaService {
   /**
    * Obtener razón social del cliente
    */
-  obtenerRazonSocialCliente(orderData: WebhookOrderData): string {
+  private obtenerRazonSocialCliente(orderData: WebhookOrderData): string {
     return (
       orderData.customer_name ||
       `Cliente Graf ${orderData.customer_id}` ||
@@ -294,14 +294,14 @@ export class FacturaService {
   /**
    * Obtener dirección del cliente
    */
-  obtenerDireccionCliente(orderData: WebhookOrderData): string {
+  private obtenerDireccionCliente(orderData: WebhookOrderData): string {
     return orderData.shipping_address?.address || "Dirección no especificada";
   }
 
   /**
    * Calcular subtotal (sin IVA) para Colombia
    */
-  calcularSubtotal(
+  private calcularSubtotal(
     items: Array<{ total?: number; quantity: number; unit_price: number }>,
   ): number {
     const total = items.reduce((sum, item) => {
@@ -315,7 +315,7 @@ export class FacturaService {
   /**
    * Calcular IVA (19%) para Colombia
    */
-  calcularIVA(
+  private calcularIVA(
     valorTotal:
       | number
       | Array<{ total?: number; quantity: number; unit_price: number }>,
@@ -345,7 +345,7 @@ export class FacturaService {
   /**
    * Calcular resumen total de la factura
    */
-  calcularResumen(itemsFactura: SigoInvoiceItem[]): SigoInvoiceSummary {
+  private calcularResumen(itemsFactura: SigoInvoiceItem[]): SigoInvoiceSummary {
     const subtotal = itemsFactura.reduce(
       (sum, item) => sum + item.valor_total,
       0,
@@ -368,7 +368,7 @@ export class FacturaService {
   /**
    * Generar ID único de factura
    */
-  generarFacturaId(orderId: number): string {
+  private generarFacturaId(orderId: number): string {
     const fecha = new Date().toISOString().split("T")[0].replace(/-/g, "");
     return `FACT-${orderId}-${fecha}`;
   }
@@ -376,7 +376,7 @@ export class FacturaService {
   /**
    * Generar número correlativo
    */
-  generarNumeroCorrelativo(): number {
+  private generarNumeroCorrelativo(): number {
 
     return Math.floor(Date.now() / 1000) % 100000;
   }
@@ -384,28 +384,28 @@ export class FacturaService {
   /**
    * Generar número correlativo único con timestamp
    */
-  generarNumeroCorrelativoUnico(): number {
+  private generarNumeroCorrelativoUnico(): number {
     return Math.floor(Date.now() / 1000);
   }
 
   /**
    * Convertir centavos a pesos
    */
-  centavosToPesos(centavos: number): number {
+  private centavosToPesos(centavos: number): number {
     return Math.round((centavos / 100) * 100) / 100;
   }
 
   /**
    * Convertir pesos a centavos
    */
-  pesosToCentavos(pesos: number): number {
+  private pesosToCentavos(pesos: number): number {
     return Math.round(pesos * 100);
   }
 
   /**
    * Formatear moneda colombiana
    */
-  formatearMonedaCOP(valor: number): string {
+  private formatearMonedaCOP(valor: number): string {
     return new Intl.NumberFormat("es-CO", {
       style: "currency",
       currency: "COP",
@@ -416,7 +416,7 @@ export class FacturaService {
   /**
    * Validar NIT colombiano (básico)
    */
-  validarNIT(nit: string): boolean {
+  private validarNIT(nit: string): boolean {
 
     const nitRegex = /^\d{9,10}-?\d$/;
     return nitRegex.test(nit);
@@ -425,7 +425,7 @@ export class FacturaService {
   /**
    * Limpiar y formatear NIT
    */
-  formatearNIT(nit: string): string {
+  private formatearNIT(nit: string): string {
 
     const cleaned = nit.replace(/[^\d-]/g, "");
 
