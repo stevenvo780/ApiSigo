@@ -4,8 +4,6 @@ import dotenv from "dotenv";
 
 import invoiceRoutes from "@/routes/invoiceRoutes";
 import clientRoutes from "@/routes/clientRoutes";
-// import webhookRoutes from "@/routes/webhookRoutes"; // removed in simplified API
-// import facturasRoutes from "@/routes/facturas"; // removed in simplified API
 
 import {
   errorHandler,
@@ -32,20 +30,13 @@ app.use(
       "Content-Type",
       "Accept",
       "Authorization",
-      "X-Hub-Signature-256",
       "x-api-key",
     ],
   }),
 );
 
-app.use(
-  express.json({
-    limit: "10mb",
-    verify: (req: any, res, buf) => {
-      req.rawBody = buf;
-    },
-  }),
-);
+// Simplified JSON parser (removed rawBody verification used for webhooks)
+app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 if (process.env.NODE_ENV !== "test") {
@@ -71,8 +62,6 @@ app.get("/api", (req, res) => {
 
 app.use("/api/invoices", invoiceRoutes);
 app.use("/api/clients", clientRoutes);
-// app.use('/api/webhooks', webhookRoutes);
-// app.use('/api/facturas', facturasRoutes);
 
 app.get("/api/docs", (req, res) => {
   res.json({

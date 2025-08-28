@@ -38,7 +38,11 @@
   "exclude": [
     "node_modules",
     "dist",
-    "**/*.js"
+    "**/*.js",
+    "src/routes/webhookRoutes.ts",
+    "src/routes/facturas.ts",
+    "src/controllers/webhookController.ts",
+    "src/services/webhookService.ts"
   ],
   "ts-node": {
     "require": ["tsconfig-paths/register"]

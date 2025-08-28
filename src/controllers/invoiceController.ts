@@ -117,26 +117,3 @@ export const cancelInvoice = async (
     });
   }
 };
-
-/** Health check de facturas */
-export const healthCheck = async (
-  _req: Request,
-  res: Response,
-): Promise<void> => {
-  try {
-    const sigoHealth = await sigoService.getInstance().healthCheck();
-    res.json({
-      success: true,
-      service: "Invoice Controller",
-      timestamp: new Date().toISOString(),
-      sigo: sigoHealth,
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      service: "Invoice Controller",
-      timestamp: new Date().toISOString(),
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
-  }
-};

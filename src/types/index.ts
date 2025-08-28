@@ -1,48 +1,3 @@
-export interface WebhookOrderData {
-  order_id: number;
-  store_id?: number;
-  customer_id?: number;
-  user_id?: number;
-  amount: number;
-  currency: string;
-  items: Array<{
-    id?: string;
-    product_id: number;
-    product_name: string;
-    // Campos alternativos usados en tests/legacy
-    nombre?: string;
-    descripcion?: string;
-    sku?: string;
-    precioUnitario?: number;
-    subtotal?: number;
-    impuestos?: number;
-    quantity: number;
-    unit_price: number;
-    total: number;
-  }>;
-  paid_at: string;
-  customer_name?: string;
-  customer_ruc?: string;
-  // Objeto cliente alternativo usado en algunos tests
-  customer?: {
-    id?: string | number;
-    tipoDocumento?: string;
-    numeroDocumento?: string;
-    nombres?: string;
-    apellidos?: string;
-    razonSocial?: string;
-    email?: string;
-    telefono?: string;
-    direccion?: any;
-  };
-  shipping_address?: {
-    address: string;
-    city?: string;
-    department?: string;
-    country?: string;
-  };
-}
-
 export interface Customer {
   id?: number;
   tipoDocumento: "RUC" | "DNI" | "CE" | "NIT" | "CC";
@@ -167,13 +122,6 @@ export interface SigoApiResponse<T = any> {
   xml_url?: string;
 }
 
-export interface WebhookServiceResponse {
-  success: boolean;
-  message: string;
-  data?: any;
-  error?: string;
-}
-
 export interface TaxCalculation {
   subtotal: number;
   iva: number;
@@ -222,42 +170,6 @@ export interface SigoConfig {
   defaultSerie?: string;
 }
 
-export interface WebhookConfig {
-  secret: string;
-  timeout: number;
-  retries: number;
-  webhookSecret?: string;
-  hubCentralUrl?: string;
-  maxRetries?: number;
-  retryDelay?: number;
-  backoff: {
-    initial: number;
-    multiplier: number;
-    max: number;
-  };
-}
-
-export interface HealthCheckResult {
-  status: "healthy" | "unhealthy" | "degraded";
-  timestamp: string;
-  services: {
-    sigo: "up" | "down" | "degraded";
-    database: "up" | "down" | "degraded";
-    webhook: "up" | "down" | "degraded";
-  };
-  response_time_ms: number;
-  errors?: string[];
-}
-
-export interface LogEntry {
-  level: "error" | "warn" | "info" | "debug";
-  message: string;
-  timestamp: string;
-  service: string;
-  source?: string;
-  metadata?: Record<string, any>;
-}
-
 export type EstadoFactura =
   | "BORRADOR"
   | "PENDIENTE"
@@ -279,51 +191,3 @@ export type TipoIdentificacion =
   | "NIT"
   | "CC"
   | "PASAPORTE";
-
-export type WebhookEvent =
-  | "pedido.pagado"
-  | "pedido.cancelado"
-  | "factura.creada"
-  | "factura.enviada"
-  | "factura.anulada";
-
-export interface CreateInvoiceData {
-  tipo_documento: string;
-  serie: string;
-  cliente: SigoClient;
-  items: SigoInvoiceItem[];
-  referencia_externa?: any;
-}
-
-export interface UpdateClientData {
-  razonSocial?: string;
-  email?: string;
-  telefono?: string;
-  direccion?: string;
-  ciudad?: string;
-  departamento?: string;
-  codigoPostal?: string;
-  activo?: boolean;
-}
-
-export interface InvoiceStatus {
-  estado: EstadoFactura;
-  fecha_actualizacion: string;
-  observaciones?: string;
-}
-
-export interface WebhookPayload {
-  event: string;
-  event_type?: string;
-  source?: string;
-  data: any;
-  timestamp: string;
-  signature?: string;
-}
-
-export interface WebhookFacturaCreada {
-  order_id: number;
-  invoice_id: string;
-  status: string;
-  created_at: string;
-}
