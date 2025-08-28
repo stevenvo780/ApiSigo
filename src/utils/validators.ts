@@ -54,7 +54,7 @@ export function validateSigoApiKey(apiKey?: string): ValidationResult {
   }
 
 
-  const validChars = /^[a-zA-Z0-9\-_\.]+$/;
+  const validChars = /^[a-zA-Z0-9\-_\.=]+$/;
   if (!validChars.test(apiKey)) {
     return {
       isValid: false,

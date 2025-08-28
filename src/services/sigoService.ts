@@ -108,6 +108,7 @@ export class SigoService {
   private ivaRate: number;
   private defaultCurrency: string;
   private defaultSerie: string;
+  private mockMode: boolean;
   private circuitBreaker = CircuitBreakerFactory.createSigoBreaker();
   private logger = LoggerFactory.getSigoLogger();
 
@@ -117,6 +118,7 @@ export class SigoService {
 
     console.log("🔍 [SigoService] Debug environment variables:");
     console.log("  Working directory:", process.cwd());
+    console.log("  MOCK_MODE:", process.env.MOCK_MODE || "false");
     console.log("  SIGO_API_URL:", process.env.SIGO_API_URL);
     console.log(
       "  SIGO_API_KEY:",
@@ -132,7 +134,7 @@ export class SigoService {
     this.apiKey = process.env.SIGO_API_KEY;
     this.username = process.env.SIGO_USERNAME;
     this.password = process.env.SIGO_PASSWORD;
-
+    this.mockMode = process.env.MOCK_MODE === "true" || process.env.NODE_ENV === "test";
 
     this.ivaRate = parseFloat(process.env.IVA_COLOMBIA || "19");
     this.defaultCurrency = process.env.MONEDA_DEFAULT || "COP";
@@ -145,9 +147,8 @@ export class SigoService {
       headers: {
         "Content-Type": "application/json",
         Accept: "application/json",
-        "Partner-Id": "hub-central-integration",
+        "Partner-Id": "Siigo-API-Integration",
         Connection: "close",
-        ...(this.apiKey && { Authorization: `${this.apiKey}` }),
       },
     });
 
@@ -161,11 +162,17 @@ export class SigoService {
     this.client.interceptors.response.use(
       (response: any) => response,
       (error: any) => {
-        console.error("SIGO API Error:", {
+        console.error("SIGO API Error - DETAILED:", {
           status: error.response?.status,
+          statusText: error.response?.statusText,
           data: error.response?.data,
           message: error.message,
           url: error.config?.url,
+          method: error.config?.method,
+          headers: error.config?.headers,
+          requestBody: error.config?.data,
+          errorCode: error.code,
+          errorStack: error.stack
         });
         throw error;
       },
@@ -179,7 +186,8 @@ export class SigoService {
     apiKey?: string;
     username?: string;
   }): Promise<any> {
-    return this.circuitBreaker.execute(async () => {
+    // Temporarily bypass circuit breaker for debugging
+    const executeAuth = async () => {
       const startTime = Date.now();
       try {
 
@@ -214,6 +222,18 @@ export class SigoService {
         });
 
         const authTimeouts = getTimeoutConfig("sigo", "authentication");
+        
+        console.log("🔍 [AUTH DEBUG] Making authentication request:", {
+          url: this.baseURL + "/auth",
+          method: "POST",
+          body: {
+            username: username,
+            access_key: apiKey?.substring(0, 10) + "...",
+          },
+          timeout: authTimeouts.total,
+          headers: this.client.defaults.headers
+        });
+        
         const response = await this.client.post(
           "/auth",
           {
@@ -246,6 +266,20 @@ export class SigoService {
 
         return response.data;
       } catch (error) {
+        console.log("🔍 [AUTH ERROR] Authentication request failed:", {
+          errorMessage: error.message,
+          errorCode: error.code,
+          errorName: error.name,
+          responseStatus: error.response?.status,
+          responseData: error.response?.data,
+          responseHeaders: error.response?.headers,
+          requestConfig: {
+            url: error.config?.url,
+            method: error.config?.method,
+            timeout: error.config?.timeout
+          }
+        });
+        
         const duration = Date.now() - startTime;
 
 
@@ -282,7 +316,9 @@ export class SigoService {
 
         throw authError;
       }
-    });
+    };
+    
+    return executeAuth();
   }
 
   /**
@@ -363,6 +399,29 @@ export class SigoService {
     invoiceData: CreateInvoiceData | SigoInvoiceData,
     dynamicCredentials?: { apiKey?: string; username?: string },
   ): Promise<SigoApiResponse> {
+    // Return mock response if in mock mode
+    if (this.mockMode) {
+      console.log("✅ [MOCK MODE] Creando factura mock - no se conectará a Siigo real");
+      const mockInvoice = {
+        success: true,
+        data: {
+          id: `INV-${Date.now()}`,
+          serie: (invoiceData as CreateInvoiceData).serie || "F001",
+          numero: (invoiceData as CreateInvoiceData).numero || Math.floor(Math.random() * 10000) + 1,
+          fecha_emision: new Date().toISOString().split('T')[0],
+          total: (invoiceData as CreateInvoiceData).totales?.total || 0,
+          cliente: (invoiceData as CreateInvoiceData).cliente?.razonSocial || "Cliente Mock",
+          status: "MOCK_CREATED",
+          timestamp: new Date().toISOString()
+        },
+        message: "Factura mock creada exitosamente",
+        status_code: 201
+      };
+      
+      console.log(`✅ [MOCK MODE] Factura mock creada: ${mockInvoice.data.id}`);
+      return mockInvoice;
+    }
+
     return this.circuitBreaker.execute(async () => {
       try {
 

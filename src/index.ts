@@ -32,7 +32,8 @@ app.use(cors({
     'Content-Type',
     'Accept',
     'Authorization',
-    'X-Hub-Signature-256'
+    'X-Hub-Signature-256',
+    'x-api-key'
   ]
 }));
 
