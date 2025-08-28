@@ -18,7 +18,8 @@ const router = Router();
  * @access  Public (con verificación HMAC)
  */
 
-router.post("/order", processOrderWebhook);
+// Enforce HMAC verification on incoming webhooks from HubCentral
+router.post("/order", verifySignature, processOrderWebhook);
 
 /**
  * @route   POST /api/webhooks/retry
