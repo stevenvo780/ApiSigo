@@ -29,6 +29,10 @@ app.use(
       "Accept",
       "Authorization",
       "x-api-key",
+      "x-sigo-email",
+      "x-sigo-apikey",
+      "x-hub-signature",
+      "Partner-Id",
     ],
   }),
 );

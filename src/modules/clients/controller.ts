@@ -97,9 +97,12 @@ export const createClient = async (
     }
 
     const sigoService = getClientService();
+    
+    // El servicio maneja automáticamente headers pre-configurados o credenciales
     const result = await sigoService.createClient(
       customerData,
       req.sigoCredentials,
+      req.sigoAuthHeaders,
     );
 
     res.status(201).json({

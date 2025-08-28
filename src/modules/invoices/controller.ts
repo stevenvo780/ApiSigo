@@ -76,9 +76,12 @@ export const createInvoice = async (
 
     const invoiceData = req.body;
     const invoiceService = getInvoiceService();
+    
+    // El servicio maneja automáticamente headers pre-configurados o credenciales
     const result = await invoiceService.createInvoice(
       invoiceData,
       req.sigoCredentials,
+      req.sigoAuthHeaders,
     );
 
     res.status(201).json({
@@ -118,11 +121,14 @@ export const cancelInvoice = async (
     const motivo = (req.body && (req.body as any).motivo) || undefined;
 
     const invoiceService = getInvoiceService();
+    
+    // El servicio maneja automáticamente headers pre-configurados o credenciales
     const data = await invoiceService.createCreditNoteByInvoiceNumber(
       serie,
       numero,
       req.sigoCredentials,
       motivo,
+      req.sigoAuthHeaders,
     );
 
     res.status(201).json({

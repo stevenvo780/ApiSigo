@@ -1,8 +1,14 @@
 import axios from "axios";
 import config from "@/shared/config";
-import AuthenticationCache from "@/shared/authCache";
 import { defaultLogger as logger } from "@/utils/logger";
 import { SigoCredentials } from "@/middleware/sigoCredentials";
+import SigoAuthService from "@/services/sigoAuthService";
+
+interface SigoAuthResponse {
+  access_token: string;
+  token_type?: string;
+  expires_in?: number;
+}
 
 export interface InvoiceItem {
   codigo?: string;
@@ -59,69 +65,29 @@ export class InvoiceService {
     });
   }
 
-  private async ensureAuth(credentials: SigoCredentials) {
-    // Verificar si tenemos token en cache
-    const cachedToken = AuthenticationCache.getToken(
-      credentials.email,
-      credentials.apiKey,
-    );
-
-    if (cachedToken) {
-      this.client.defaults.headers["Authorization"] = `Bearer ${cachedToken}`;
+  private async ensureAuth(credentials?: SigoCredentials, authHeaders?: any) {
+    // Si ya tenemos headers configurados, úsalos directamente
+    if (authHeaders?.Authorization && authHeaders?.["Partner-Id"]) {
+      this.client.defaults.headers["Authorization"] = authHeaders.Authorization;
+      this.client.defaults.headers["Partner-Id"] = authHeaders["Partner-Id"];
       return;
     }
 
-    // Autenticar y cachear el token
-    await this.authenticate(credentials);
-  }
-
-  private async authenticate(credentials: SigoCredentials): Promise<void> {
-    try {
-      logger.info("Iniciando autenticación con SIGO");
-
-      const authUrl = `${config.sigo.baseUrl}/auth`;
-      const authData = {
-        username: credentials.email,
-        password: credentials.apiKey,
-      };
-
-      logger.info(`Obteniendo token de autenticación desde ${authUrl}`);
-
-      const response = await axios.post<{ token: string }>(authUrl, authData, {
-        timeout: 10000,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (!response.data?.token) {
-        throw new Error("No se recibió token de autenticación");
-      }
-
-      const token = response.data.token;
-
-      // Guardar token en caché
-      AuthenticationCache.setToken(
-        credentials.email,
-        credentials.apiKey,
-        token,
-      );
-
-      // Configurar token en el cliente
-      this.client.defaults.headers["Authorization"] = `Bearer ${token}`;
-
-      logger.info("Token obtenido y guardado en caché exitosamente");
-    } catch (error) {
-      logger.error("Error en autenticación SIGO:", error);
-      throw new Error(`Error de autenticación: ${error}`);
+    // Si no hay headers pero sí credenciales, autenticar
+    if (credentials) {
+      await SigoAuthService.configureAxiosClient(this.client, credentials);
+      return;
     }
+
+    throw new Error("Se requieren credenciales o headers de autenticación");
   }
 
   async createInvoice(
     data: CreateInvoiceData,
-    credentials: SigoCredentials,
+    credentials?: SigoCredentials,
+    authHeaders?: any,
   ): Promise<any> {
-    await this.ensureAuth(credentials);
+    await this.ensureAuth(credentials, authHeaders);
 
     const sigoPayload: any = {
       document: {
@@ -163,9 +129,10 @@ export class InvoiceService {
   async getInvoice(
     _serie: string,
     numero: string | number,
-    credentials: SigoCredentials,
+    credentials?: SigoCredentials,
+    authHeaders?: any,
   ): Promise<any> {
-    await this.ensureAuth(credentials);
+    await this.ensureAuth(credentials, authHeaders);
     const res = await this.client.get(
       `/v1/invoices?number=${encodeURIComponent(String(numero))}`,
     );
@@ -176,12 +143,13 @@ export class InvoiceService {
   async createCreditNoteByInvoiceNumber(
     serie: string,
     numero: string | number,
-    credentials: SigoCredentials,
+    credentials?: SigoCredentials,
     motivo?: string,
+    authHeaders?: any,
   ): Promise<any> {
-    await this.ensureAuth(credentials);
+    await this.ensureAuth(credentials, authHeaders);
 
-    const inv = await this.getInvoice(serie, numero, credentials);
+    const inv = await this.getInvoice(serie, numero, credentials, authHeaders);
     if (!inv || !inv.id) {
       throw new Error("Factura no encontrada en Siigo");
     }
@@ -222,7 +190,8 @@ export class InvoiceService {
 
   async createInvoiceFromWebhook(
     orderData: any,
-    credentials: SigoCredentials,
+    credentials?: SigoCredentials,
+    authHeaders?: any,
   ): Promise<any> {
     // Validar datos mínimos
     if (!orderData.items || orderData.items.length === 0) {
@@ -258,7 +227,7 @@ export class InvoiceService {
       observaciones: `Orden desde webhook: ${orderData.order_id}`,
     };
 
-    return await this.createInvoice(invoiceData, credentials);
+    return await this.createInvoice(invoiceData, credentials, authHeaders);
   }
 }
 

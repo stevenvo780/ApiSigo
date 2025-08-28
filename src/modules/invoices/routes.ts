@@ -7,7 +7,7 @@ import {
   validateInvoiceParams,
 } from "./controller";
 import { getInvoiceService } from "./service";
-import { extractSigoCredentials } from "@/middleware/sigoCredentials";
+import { extractSigoCredentials, extractSigoCredentialsWithAuth } from "@/middleware/sigoCredentials";
 
 const router = Router();
 
@@ -26,7 +26,7 @@ const validateWebhookSignature = (payload: any, signature?: string) => {
 };
 
 // POST /api/invoices - Crear factura
-router.post("/", extractSigoCredentials, validateInvoice, createInvoice);
+router.post("/", extractSigoCredentialsWithAuth, validateInvoice, createInvoice);
 
 // POST /api/invoices/webhook - Crear factura desde webhook
 router.post("/webhook", extractSigoCredentials, async (req, res) => {
@@ -87,7 +87,7 @@ router.post("/webhook", extractSigoCredentials, async (req, res) => {
 // POST /api/invoices/:serie/:numero/cancel - Cancelar factura
 router.post(
   "/:serie/:numero/cancel",
-  extractSigoCredentials,
+  extractSigoCredentialsWithAuth,
   validateInvoiceParams,
   cancelInvoice,
 );

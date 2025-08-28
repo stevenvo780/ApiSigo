@@ -1,8 +1,7 @@
 import axios from "axios";
 import config from "@/shared/config";
-import AuthenticationCache from "@/shared/authCache";
-import { defaultLogger as logger } from "@/utils/logger";
 import { SigoCredentials } from "@/middleware/sigoCredentials";
+import SigoAuthService from "@/services/sigoAuthService";
 
 export interface CreateClientData {
   tipoDocumento: "RUC" | "DNI" | "CE" | "NIT" | "CC";
@@ -31,66 +30,33 @@ export class ClientService {
     });
   }
 
-  private async ensureAuth(credentials: SigoCredentials) {
-    // Verificar si tenemos token en cache
-    const cachedToken = AuthenticationCache.getToken(
-      credentials.email,
-      credentials.apiKey,
-    );
-
-    if (cachedToken) {
-      this.client.defaults.headers["Authorization"] = `Bearer ${cachedToken}`;
+  private async ensureAuth(credentials?: SigoCredentials, authHeaders?: any) {
+    // Si ya tenemos headers configurados, úsalos directamente
+    if (authHeaders?.Authorization && authHeaders?.["Partner-Id"]) {
+      this.client.defaults.headers["Authorization"] = authHeaders.Authorization;
+      this.client.defaults.headers["Partner-Id"] = authHeaders["Partner-Id"];
       return;
     }
 
-    // Autenticar y cachear el token
-    await this.authenticate(credentials);
+    // Si no hay headers pero sí credenciales, autenticar
+    if (credentials) {
+      await SigoAuthService.configureAxiosClient(this.client, credentials);
+      return;
+    }
+
+    throw new Error("Se requieren credenciales o headers de autenticación");
   }
 
-  private async authenticate(credentials: SigoCredentials): Promise<void> {
-    try {
-      logger.info("Iniciando autenticación con SIGO para clientes");
+  async createClient(
+    data: CreateClientData,
+    credentials?: SigoCredentials,
+    authHeaders?: any,
+  ): Promise<any> {
+    await this.ensureAuth(credentials, authHeaders);
 
-      const authUrl = `${config.sigo.baseUrl}/auth`;
-      const authData = {
-        username: credentials.email,
-        access_key: credentials.apiKey,
-      };
-
-      logger.info(`Obteniendo token de autenticación desde ${authUrl}`);
-
-      const response = await axios.post<{ access_token: string }>(
-        authUrl,
-        authData,
-        {
-          timeout: 10000,
-          headers: {
-            "Content-Type": "application/json",
-          },
-        },
-      );
-
-      if (!response.data?.access_token) {
-        throw new Error("No se recibió token de autenticación");
-      }
-
-      const token = response.data.access_token;
-
-      // Guardar token en caché
-      AuthenticationCache.setToken(
-        credentials.email,
-        credentials.apiKey,
-        token,
-      );
-
-      // Configurar token en el cliente
-      this.client.defaults.headers["Authorization"] = `Bearer ${token}`;
-
-      logger.info("Token obtenido y guardado en caché exitosamente");
-    } catch (error) {
-      logger.error("Error en autenticación SIGO:", error);
-      throw new Error(`Error de autenticación: ${error}`);
-    }
+    const sigoPayload = this.buildSiigoCustomerPayload(data);
+    const response = await this.client.post("/v1/customers", sigoPayload);
+    return response.data;
   }
 
   private mapTipoDocumentoToIdType(tipo: string): number {
@@ -109,11 +75,21 @@ export class ClientService {
   }
 
   private buildSiigoCustomerPayload(data: CreateClientData) {
+    // SIGO requiere formato específico:
+    // - id_type: string (no objeto)
+    // - name: array de exactamente 2 elementos [nombre, apellido]
+    const nombreCompleto = data.razonSocial.trim();
+    const palabras = nombreCompleto.split(" ");
+
+    // Dividir en nombre y apellido (máximo 2 elementos)
+    const nombre = palabras[0] || nombreCompleto;
+    const apellido = palabras.slice(1).join(" ") || nombre;
+
     return {
       person_type: this.mapPersonType(data.tipoDocumento),
-      id_type: this.mapTipoDocumentoToIdType(data.tipoDocumento),
+      id_type: this.mapTipoDocumentoToIdType(data.tipoDocumento).toString(), // SIGO espera string
       identification: data.numeroDocumento,
-      name: data.razonSocial,
+      name: [nombre, apellido], // SIGO requiere exactamente 2 elementos
       commercial_name: data.razonSocial,
       address: data.direccion
         ? {
@@ -126,24 +102,17 @@ export class ClientService {
       contacts: data.email
         ? [
             {
-              first_name: data.razonSocial,
+              first_name: nombre,
+              last_name: apellido,
               email: data.email,
-              phone: data.telefono,
+              phone: data.telefono
+                ? { indicative: "57", number: data.telefono }
+                : undefined,
             },
           ]
         : undefined,
       active: data.activo !== undefined ? data.activo : true,
     };
-  }
-
-  async createClient(
-    clientData: CreateClientData,
-    credentials: SigoCredentials,
-  ): Promise<any> {
-    await this.ensureAuth(credentials);
-    const payload = this.buildSiigoCustomerPayload(clientData);
-    const response = await this.client.post("/v1/customers", payload);
-    return response.data;
   }
 }
 
