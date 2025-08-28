@@ -1,9 +1,9 @@
 import express, { Express } from "express";
 import cors from "cors";
-import dotenv from "dotenv";
 
-import invoiceRoutes from "@/routes/invoiceRoutes";
-import clientRoutes from "@/routes/clientRoutes";
+// Módulos
+import { routes as invoiceRoutes } from "@/modules/invoices";
+import { routes as clientRoutes } from "@/modules/clients";
 
 import {
   errorHandler,
@@ -11,8 +11,6 @@ import {
   requestLogger,
   validateJson,
 } from "@/middleware/errorHandler";
-
-dotenv.config();
 
 const app: Express = express();
 const PORT = process.env.PORT || 3000;
@@ -54,6 +52,7 @@ app.get("/api", (req, res) => {
     endpoints: {
       invoices: "/api/invoices",
       clients: "/api/clients",
+      webhook: "/api/invoices/webhook",
     },
     documentation: "/api/docs",
     timestamp: new Date().toISOString(),
@@ -69,8 +68,9 @@ app.get("/api/docs", (req, res) => {
     documentation: {
       invoices: {
         "POST /api/invoices": "Crear nueva factura",
+        "POST /api/invoices/webhook": "Crear factura desde webhook",
         "POST /api/invoices/:serie/:numero/cancel":
-          "Anular factura (no soportado; devuelve mensaje)",
+          "Anular factura (crear nota de crédito)",
       },
       clients: {
         "POST /api/clients": "Crear nuevo cliente",

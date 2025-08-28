@@ -1,11 +1,18 @@
 import { Router } from "express";
 import crypto from "crypto";
-import { facturaService } from "@/services/facturaService";
-import webhookService from "@/services/webhookService";
+import {
+  createInvoice,
+  cancelInvoice,
+  validateInvoice,
+  validateInvoiceParams,
+} from "./controller";
+import { getInvoiceService } from "./service";
+import { extractSigoCredentials } from "@/middleware/sigoCredentials";
 
 const router = Router();
 
-const validateSignature = (payload: any, signature?: string) => {
+// Validar firma de webhook
+const validateWebhookSignature = (payload: any, signature?: string) => {
   if (!signature) return { ok: false, message: "Firma de webhook requerida" };
   const secret = process.env.HUB_WEBHOOK_SECRET || "";
   const expected = crypto
@@ -18,11 +25,23 @@ const validateSignature = (payload: any, signature?: string) => {
     : { ok: false, message: "Firma de webhook inválida" };
 };
 
-router.post("/", async (req, res) => {
+// POST /api/invoices - Crear factura
+router.post("/", extractSigoCredentials, validateInvoice, createInvoice);
+
+// POST /api/invoices/webhook - Crear factura desde webhook
+router.post("/webhook", extractSigoCredentials, async (req, res) => {
   const signature = (req.headers["x-hub-signature"] as string) || "";
-  const sigCheck = validateSignature(req.body, signature);
+  const sigCheck = validateWebhookSignature(req.body, signature);
   if (!sigCheck.ok) {
     return res.status(401).json({ status: "error", message: sigCheck.message });
+  }
+
+  // Verificar credenciales
+  if (!(req as any).sigoCredentials) {
+    return res.status(401).json({
+      status: "error",
+      message: "Credenciales SIGO requeridas en headers",
+    });
   }
 
   const errors: any[] = [];
@@ -41,31 +60,23 @@ router.post("/", async (req, res) => {
   }
 
   try {
-    const result: any = await facturaService.crearFacturaDesdeWebhook(
+    const invoiceService = getInvoiceService();
+    const result = await invoiceService.createInvoiceFromWebhook(
       req.body.data,
+      (req as any).sigoCredentials,
     );
-    if (!result.success) {
-      return res
-        .status(400)
-        .json({ status: "error", errores: result.errores || [] });
-    }
 
-    try {
-      await webhookService.enviarFacturaCreada({
-        factura_id: result.factura_id,
-        documento_sigo_id: result.sigo_id || result.numero_factura,
-        numero_documento: result.numero_factura,
-        estado: result.estado,
-        pdf_url: result.pdf_url,
-        xml_url: result.xml_url,
-        orden_graf: req.body.data?.order_id,
-        monto_facturado: req.body.data?.amount
-          ? req.body.data.amount / 100
-          : undefined,
-      });
-    } catch {}
+    const response = {
+      success: true,
+      factura_id: result.id || result.numero_documento,
+      numero_factura: result.number || result.numero_documento,
+      estado: "CREADA",
+      sigo_id: result.id,
+      pdf_url: result.pdf_url,
+      xml_url: result.xml_url,
+    };
 
-    return res.status(200).json({ status: "success", ...result });
+    return res.status(200).json({ status: "success", ...response });
   } catch (err: any) {
     return res
       .status(500)
@@ -73,15 +84,12 @@ router.post("/", async (req, res) => {
   }
 });
 
-router.get("/health", (_req, res) => {
-  return res.json({
-    status: "OK",
-    service: "ApiSigo Webhooks",
-    endpoints: {
-      create: "/api/facturas",
-      health: "/api/facturas/health",
-    },
-  });
-});
+// POST /api/invoices/:serie/:numero/cancel - Cancelar factura
+router.post(
+  "/:serie/:numero/cancel",
+  extractSigoCredentials,
+  validateInvoiceParams,
+  cancelInvoice,
+);
 
 export default router;

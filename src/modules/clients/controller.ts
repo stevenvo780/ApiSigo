@@ -1,7 +1,7 @@
-import { Request, Response, NextFunction } from "express";
+import { Response, NextFunction } from "express";
 import { body, validationResult } from "express-validator";
-import { sigoService } from "@/services/sigoService";
-import { CreateClientData } from "@/services/sigoService";
+import { getClientService, CreateClientData } from "./service";
+import { RequestWithSigoCredentials } from "@/middleware/sigoCredentials";
 
 export const validateClient = [
   body("customerData.tipoDocumento")
@@ -39,24 +39,16 @@ export const validateClient = [
     .optional()
     .isLength({ max: 10 })
     .withMessage("Código postal no debe exceder 10 caracteres"),
-  body("sigoCredentials")
-    .optional()
-    .isObject()
-    .withMessage("Credenciales de SIGO deben ser un objeto"),
 ];
 
-// Request interface para creación con credenciales opcionales
-export interface ClientRequestWithCredentials extends Request {
+export interface ClientRequestWithCredentials
+  extends RequestWithSigoCredentials {
   body: {
     customerData: CreateClientData;
-    sigoCredentials?: any;
     eventType?: string;
   };
 }
 
-/**
- * Crear cliente - Compatible con webhook desde HubCentral
- */
 export const createClient = async (
   req: ClientRequestWithCredentials,
   res: Response,
@@ -72,7 +64,16 @@ export const createClient = async (
       return;
     }
 
-    const { customerData, sigoCredentials, eventType } = req.body;
+    // Verificar que tenemos credenciales
+    if (!req.sigoCredentials) {
+      res.status(401).json({
+        error: "Credenciales SIGO requeridas",
+        message: "Middleware de credenciales no configurado correctamente",
+      });
+      return;
+    }
+
+    const { customerData, eventType } = req.body;
 
     if (!customerData) {
       res.status(400).json({
@@ -86,7 +87,6 @@ export const createClient = async (
             telefono: "string (opcional)",
             direccion: "string (opcional)",
           },
-          sigoCredentials: "object (opcional)",
         },
       });
       return;
@@ -96,9 +96,11 @@ export const createClient = async (
       console.log(`[ClientController] Processing webhook event: ${eventType}`);
     }
 
-    const result = await sigoService
-      .getInstance()
-      .createClient(customerData, sigoCredentials);
+    const sigoService = getClientService();
+    const result = await sigoService.createClient(
+      customerData,
+      req.sigoCredentials,
+    );
 
     res.status(201).json({
       success: true,

@@ -78,30 +78,6 @@ export interface SigoInvoiceSummary {
   total: number;
 }
 
-export interface FacturaServiceResponse {
-  success: boolean;
-  // contrato alternativo usado por tests
-  factura_id?: string;
-  numero_factura?: string;
-  estado?: string;
-  pdf_url?: string;
-  xml_url?: string;
-  serie?: string;
-  numero?: string;
-  mensaje?: string;
-  datos_transformados?: any;
-  data?: {
-    factura_id: string;
-    numero_factura: string;
-    estado: string;
-    pdf_url?: string;
-    xml_url?: string;
-  };
-  error?: string;
-  errores?: string[];
-  details?: any;
-}
-
 export interface SigoServiceResponse {
   success: boolean;
   data?: any;

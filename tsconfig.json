@@ -28,7 +28,9 @@
       "@/controllers/*": ["src/controllers/*"],
       "@/models/*": ["src/models/*"],
       "@/middleware/*": ["src/middleware/*"],
-      "@/routes/*": ["src/routes/*"]
+      "@/routes/*": ["src/routes/*"],
+      "@/modules/*": ["src/modules/*"],
+      "@/shared/*": ["src/shared/*"]
     },
     "typeRoots": ["./node_modules/@types", "./src/types"]
   },
@@ -38,11 +40,7 @@
   "exclude": [
     "node_modules",
     "dist",
-    "**/*.js",
-    "src/routes/webhookRoutes.ts",
-    "src/routes/facturas.ts",
-    "src/controllers/webhookController.ts",
-    "src/services/webhookService.ts"
+    "**/*.js"
   ],
   "ts-node": {
     "require": ["tsconfig-paths/register"]

@@ -1,7 +1,7 @@
-import { Request, Response, NextFunction } from "express";
+import { Response, NextFunction } from "express";
 import { body, param, validationResult } from "express-validator";
-import sigoService from "@/services/sigoService";
-import { CreateInvoiceData } from "@/services/sigoService";
+import { getInvoiceService, CreateInvoiceData } from "./service";
+import { RequestWithSigoCredentials } from "@/middleware/sigoCredentials";
 
 export const validateInvoice = [
   body("serie").notEmpty().withMessage("Serie es requerida"),
@@ -39,18 +39,17 @@ export const validateInvoiceParams = [
   param("numero").notEmpty().withMessage("Número es requerido"),
 ];
 
-export interface InvoiceRequest extends Request {
+export interface InvoiceRequest extends RequestWithSigoCredentials {
   body: CreateInvoiceData;
 }
 
-export interface InvoiceParamsRequest extends Request {
+export interface InvoiceParamsRequest extends RequestWithSigoCredentials {
   params: {
     serie: string;
     numero: string;
   };
 }
 
-/** Crear factura */
 export const createInvoice = async (
   req: InvoiceRequest,
   res: Response,
@@ -66,8 +65,21 @@ export const createInvoice = async (
       return;
     }
 
+    // Verificar que tenemos credenciales
+    if (!req.sigoCredentials) {
+      res.status(401).json({
+        error: "Credenciales SIGO requeridas",
+        message: "Middleware de credenciales no configurado correctamente",
+      });
+      return;
+    }
+
     const invoiceData = req.body;
-    const result = await sigoService.getInstance().createInvoice(invoiceData);
+    const invoiceService = getInvoiceService();
+    const result = await invoiceService.createInvoice(
+      invoiceData,
+      req.sigoCredentials,
+    );
 
     res.status(201).json({
       success: true,
@@ -79,7 +91,6 @@ export const createInvoice = async (
   }
 };
 
-/** Cancelar factura (placeholder, no soportado por Siigo) */
 export const cancelInvoice = async (
   req: InvoiceParamsRequest,
   res: Response,
@@ -94,12 +105,25 @@ export const cancelInvoice = async (
       return;
     }
 
+    // Verificar que tenemos credenciales
+    if (!req.sigoCredentials) {
+      res.status(401).json({
+        error: "Credenciales SIGO requeridas",
+        message: "Middleware de credenciales no configurado correctamente",
+      });
+      return;
+    }
+
     const { serie, numero } = req.params;
     const motivo = (req.body && (req.body as any).motivo) || undefined;
 
-    const data = await sigoService
-      .getInstance()
-      .createCreditNoteByInvoiceNumber(serie, numero, motivo);
+    const invoiceService = getInvoiceService();
+    const data = await invoiceService.createCreditNoteByInvoiceNumber(
+      serie,
+      numero,
+      req.sigoCredentials,
+      motivo,
+    );
 
     res.status(201).json({
       success: true,
@@ -107,7 +131,6 @@ export const cancelInvoice = async (
       data,
     });
   } catch (error) {
-    // Si falla, devolver mensaje claro
     res.status(400).json({
       success: false,
       error:
