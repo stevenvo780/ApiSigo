@@ -15,40 +15,9 @@ export interface RequestWithSigoCredentials extends Request {
   };
 }
 
-export const extractSigoCredentials = (
-  req: RequestWithSigoCredentials,
-  res: Response,
-  next: NextFunction,
-): void => {
-  // Extraer credenciales de headers
-  const email = req.headers["x-sigo-email"] as string;
-  const apiKey = req.headers["x-sigo-apikey"] as string;
-
-  // Validar que las credenciales estén presentes
-  if (!email || !apiKey) {
-    res.status(401).json({
-      error: "Credenciales SIGO requeridas",
-      message: "Debe proporcionar x-sigo-email y x-sigo-apikey en los headers",
-      headers_required: {
-        "x-sigo-email": "Email de usuario SIGO",
-        "x-sigo-apikey": "API Key de SIGO",
-      },
-    });
-    return;
-  }
-
-  // Inyectar credenciales en el request
-  req.sigoCredentials = {
-    email: email.trim(),
-    apiKey: apiKey.trim(),
-  };
-
-  next();
-};
-
 /**
- * Middleware que además de extraer credenciales, obtiene y configura
- * los headers de autenticación (Bearer + Partner-Id) listos para usar
+ * Middleware único: extrae credenciales y prepara headers de autenticación
+ * (Bearer + Partner-Id) listos para usar en cualquier endpoint.
  */
 export const extractSigoCredentialsWithAuth = async (
   req: RequestWithSigoCredentials,
@@ -56,16 +25,14 @@ export const extractSigoCredentialsWithAuth = async (
   next: NextFunction,
 ): Promise<void> => {
   try {
-    // Primero extraer credenciales
+    // Extraer credenciales de headers
     const email = req.headers["x-sigo-email"] as string;
     const apiKey = req.headers["x-sigo-apikey"] as string;
 
-    // Validar que las credenciales estén presentes
     if (!email || !apiKey) {
       res.status(401).json({
         error: "Credenciales SIGO requeridas",
-        message:
-          "Debe proporcionar x-sigo-email y x-sigo-apikey en los headers",
+        message: "Debe proporcionar x-sigo-email y x-sigo-apikey en los headers",
         headers_required: {
           "x-sigo-email": "Email de usuario SIGO",
           "x-sigo-apikey": "API Key de SIGO",
@@ -81,9 +48,7 @@ export const extractSigoCredentialsWithAuth = async (
     };
 
     // Obtener headers de autenticación de SIGO
-    const authHeaders = await SigoAuthService.getAuthHeaders(
-      req.sigoCredentials,
-    );
+    const authHeaders = await SigoAuthService.getAuthHeaders(req.sigoCredentials);
     req.sigoAuthHeaders = authHeaders;
 
     next();
@@ -95,4 +60,4 @@ export const extractSigoCredentialsWithAuth = async (
   }
 };
 
-export default extractSigoCredentials;
+export default extractSigoCredentialsWithAuth;

@@ -7,7 +7,7 @@ import {
   validateInvoiceParams,
 } from "./controller";
 import { getInvoiceService } from "./service";
-import { extractSigoCredentials, extractSigoCredentialsWithAuth } from "@/middleware/sigoCredentials";
+import { extractSigoCredentialsWithAuth } from "@/middleware/sigoCredentials";
 
 const router = Router();
 
@@ -26,10 +26,15 @@ const validateWebhookSignature = (payload: any, signature?: string) => {
 };
 
 // POST /api/invoices - Crear factura
-router.post("/", extractSigoCredentialsWithAuth, validateInvoice, createInvoice);
+router.post(
+  "/",
+  extractSigoCredentialsWithAuth,
+  validateInvoice,
+  createInvoice,
+);
 
 // POST /api/invoices/webhook - Crear factura desde webhook
-router.post("/webhook", extractSigoCredentials, async (req, res) => {
+router.post("/webhook", extractSigoCredentialsWithAuth, async (req, res) => {
   const signature = (req.headers["x-hub-signature"] as string) || "";
   const sigCheck = validateWebhookSignature(req.body, signature);
   if (!sigCheck.ok) {
@@ -64,6 +69,7 @@ router.post("/webhook", extractSigoCredentials, async (req, res) => {
     const result = await invoiceService.createInvoiceFromWebhook(
       req.body.data,
       (req as any).sigoCredentials,
+      (req as any).sigoAuthHeaders,
     );
 
     const response = {
