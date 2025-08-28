@@ -28,14 +28,16 @@ import { ApiMetrics, measureExecutionTime } from "@/utils/metrics";
 import { LoggerFactory } from "@/utils/logger";
 
 export interface CreateClientData {
+  tipoDocumento: "RUC" | "DNI" | "CE" | "NIT" | "CC";
+  numeroDocumento: string;
   razonSocial: string;
-  ruc?: string;
-  nit?: string;
-  direccion: string;
   email?: string;
   telefono?: string;
-  tipoDocumento?: string;
-  estado?: string;
+  direccion?: string;
+  ciudad?: string;
+  departamento?: string;
+  codigoPostal?: string;
+  activo?: boolean;
 }
 
 export interface UpdateClientData {
@@ -321,65 +323,91 @@ export class SigoService {
     dynamicCredentials?: { apiKey?: string; username?: string },
   ): Promise<any> {
     try {
-      if (
-        !this.client.defaults.headers["Authorization"] ||
-        !this.client.defaults.headers["Authorization"].includes("Bearer")
-      ) {
-        await this.authenticate(dynamicCredentials);
-      }
+      // Use credentials if provided, otherwise use default from config
+      const apiCredentials = dynamicCredentials || this.getDefaultCredentials();
 
-      const response = await this.client.post("/v1/customers", {
-        type: "Customer",
-        person_type: "Company",
-        id_type: clientData.tipoDocumento || "31",
-        identification: clientData.ruc || clientData.nit,
-        name: [clientData.razonSocial],
-        commercial_name: clientData.razonSocial,
-        address: {
-          address: clientData.direccion,
-          city: { country_code: "Co", country_name: "Colombia" },
-        },
-        phones: clientData.telefono ? [{ number: clientData.telefono }] : [],
-        contacts: clientData.email ? [{ email: clientData.email }] : [],
+      const response = await this.request({
+        method: "POST",
+        endpoint: "/clientes",
+        data: clientData,
+        credentials: apiCredentials,
       });
 
-      return response.data;
+      return response;
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown error";
-      throw new Error(`Error creando cliente: ${message}`);
+      this.logger.error("Error creando cliente en SIGO:", error);
+      throw error;
     }
   }
 
   /**
    * Obtener cliente por RUC/NIT
    */
-  async getClient(ruc: string): Promise<any> {
+  async getClient(
+    numeroDocumento: string,
+    dynamicCredentials?: { apiKey?: string; username?: string },
+  ): Promise<any> {
     try {
-      const response = await this.client.get(`/clientes/${ruc}`);
-      return response.data;
+      const apiCredentials = dynamicCredentials || this.getDefaultCredentials();
+
+      const response = await this.request({
+        method: "GET",
+        endpoint: `/clientes/${numeroDocumento}`,
+        credentials: apiCredentials,
+      });
+
+      return response;
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown error";
-      throw new Error(`Error obteniendo cliente: ${message}`);
+      this.logger.error(`Error obteniendo cliente ${numeroDocumento}:`, error);
+      throw error;
     }
   }
 
   /**
    * Actualizar cliente
    */
-  async updateClient(ruc: string, clientData: UpdateClientData): Promise<any> {
+  async updateClient(
+    numeroDocumento: string,
+    updateData: Partial<CreateClientData>,
+    dynamicCredentials?: { apiKey?: string; username?: string },
+  ): Promise<any> {
     try {
-      const response = await this.client.put(`/clientes/${ruc}`, {
-        razon_social: clientData.razonSocial,
-        direccion: clientData.direccion,
-        email: clientData.email,
-        telefono: clientData.telefono,
-        estado: clientData.estado,
+      const apiCredentials = dynamicCredentials || this.getDefaultCredentials();
+
+      const response = await this.request({
+        method: "PUT",
+        endpoint: `/clientes/${numeroDocumento}`,
+        data: updateData,
+        credentials: apiCredentials,
       });
 
-      return response.data;
+      return response;
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown error";
-      throw new Error(`Error actualizando cliente: ${message}`);
+      this.logger.error(`Error actualizando cliente ${numeroDocumento}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Eliminar cliente
+   */
+  async deleteClient(
+    numeroDocumento: string,
+    dynamicCredentials?: { apiKey?: string; username?: string },
+  ): Promise<any> {
+    try {
+      const apiCredentials = dynamicCredentials || this.getDefaultCredentials();
+
+      const response = await this.request({
+        method: "DELETE",
+        endpoint: `/clientes/${numeroDocumento}`,
+        credentials: apiCredentials,
+      });
+
+      return response;
+    } catch (error) {
+      this.logger.error(`Error eliminando cliente ${numeroDocumento}:`, error);
+      throw error;
     }
   }
 
@@ -700,6 +728,76 @@ export class SigoService {
   }
 
   /**
+   * Buscar clientes con filtros
+   */
+  async searchClients(
+    params: {
+      query: string;
+      page?: number;
+      limit?: number;
+      tipoDocumento?: string;
+    },
+    credentials?: any
+  ): Promise<any> {
+    try {
+      const apiCredentials = credentials || this.getDefaultCredentials();
+      
+      const queryParams = new URLSearchParams({
+        q: params.query,
+        page: (params.page || 1).toString(),
+        limit: (params.limit || 20).toString(),
+        ...(params.tipoDocumento && { tipoDocumento: params.tipoDocumento })
+      });
+
+      const response = await this.request({
+        method: "GET",
+        endpoint: `/clientes/search?${queryParams.toString()}`,
+        credentials: apiCredentials
+      });
+
+      return response;
+    } catch (error) {
+      this.logger.error("Error buscando clientes:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Obtener lista paginada de clientes
+   */
+  async getClientList(
+    params: {
+      page?: number;
+      limit?: number;
+      tipoDocumento?: string;
+      activo?: boolean;
+    },
+    credentials?: any
+  ): Promise<any> {
+    try {
+      const apiCredentials = credentials || this.getDefaultCredentials();
+      
+      const queryParams = new URLSearchParams({
+        page: (params.page || 1).toString(),
+        limit: (params.limit || 20).toString(),
+        ...(params.tipoDocumento && { tipoDocumento: params.tipoDocumento }),
+        ...(params.activo !== undefined && { activo: params.activo.toString() })
+      });
+
+      const response = await this.request({
+        method: "GET",
+        endpoint: `/clientes?${queryParams.toString()}`,
+        credentials: apiCredentials
+      });
+
+      return response;
+    } catch (error) {
+      this.logger.error("Error obteniendo lista de clientes:", error);
+      throw error;
+    }
+  }
+
+  /**
    * Health check del servicio SIGO
    */
   async healthCheck(): Promise<HealthCheckResult> {
@@ -761,56 +859,13 @@ export class SigoService {
   }
 
   /**
-   * Eliminar cliente
+   * Obtener credenciales por defecto
    */
-  async deleteClient(numeroDocumento: string): Promise<any> {
+  private getDefaultCredentials(): any {
     return {
-      success: true,
-      message: "Cliente eliminado exitosamente",
-    };
-  }
-
-  /**
-   * Buscar clientes
-   */
-  async searchClients(params: {
-    query: string;
-    page?: number;
-    limit?: number;
-    tipoDocumento?: string;
-  }): Promise<any> {
-    return {
-      success: true,
-      data: {
-        clientes: [],
-        pagination: {
-          page: params.page || 1,
-          limit: params.limit || 20,
-          total: 0,
-        },
-      },
-    };
-  }
-
-  /**
-   * Obtener lista de clientes
-   */
-  async getClientList(params: {
-    page?: number;
-    limit?: number;
-    tipoDocumento?: string;
-    activo?: boolean;
-  }): Promise<any> {
-    return {
-      success: true,
-      data: {
-        clientes: [],
-        pagination: {
-          page: params.page || 1,
-          limit: params.limit || 20,
-          total: 0,
-        },
-      },
+      apiKey: process.env.SIGO_API_KEY,
+      apiSecret: process.env.SIGO_API_SECRET,
+      // Add other default credentials as needed
     };
   }
 }
