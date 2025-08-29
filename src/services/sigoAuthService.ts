@@ -145,18 +145,6 @@ export class SigoAuthService {
     };
   }
 
-  /**
-   * Configura un cliente axios con headers de autenticación
-   */
-  public static async configureAxiosClient(
-    client: any,
-    credentials: SigoCredentials,
-  ): Promise<void> {
-    const authHeaders = await this.getAuthHeaders(credentials);
-
-    client.defaults.headers["Authorization"] = authHeaders.Authorization;
-    client.defaults.headers["Partner-Id"] = authHeaders["Partner-Id"];
-  }
 }
 
 export default SigoAuthService;

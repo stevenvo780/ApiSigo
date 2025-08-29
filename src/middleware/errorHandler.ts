@@ -118,16 +118,6 @@ export const errorHandler = (
   });
 };
 
-/**
- * Middleware para capturar errores asincrónicos
- */
-export const asyncHandler = (
-  fn: (req: Request, res: Response, next: NextFunction) => any | Promise<any>,
-) => {
-  return (req: Request, res: Response, next: NextFunction) => {
-    Promise.resolve(fn(req, res, next)).catch(next);
-  };
-};
 
 /**
  * Middleware para rutas no encontradas
@@ -142,21 +132,6 @@ export const notFound = (
   next(error);
 };
 
-/**
- * Crear error personalizado
- */
-export const createError = (
-  message: string,
-  statusCode: number = 500,
-  code?: string,
-  details?: any,
-): ApiError => {
-  const error: ApiError = new Error(message);
-  error.statusCode = statusCode;
-  error.code = code;
-  error.details = details;
-  return error;
-};
 
 /**
  * Middleware de logging de requests

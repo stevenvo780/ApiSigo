@@ -42,25 +42,7 @@ export class AuthenticationCache {
     authCache = null;
   }
 
-  static isAuthenticated(email: string, apiKey: string): boolean {
-    return this.getToken(email, apiKey) !== null;
-  }
 
-  static getCacheInfo(): {
-    hasCache: boolean;
-    email?: string;
-    expiresIn?: number;
-  } {
-    if (!authCache) {
-      return { hasCache: false };
-    }
-
-    return {
-      hasCache: true,
-      email: authCache.email,
-      expiresIn: Math.max(0, authCache.expiresAt - Date.now()),
-    };
-  }
 }
 
 export default AuthenticationCache;
