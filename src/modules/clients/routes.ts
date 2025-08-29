@@ -4,7 +4,7 @@ import { extractSigoCredentialsWithAuth } from "@/middleware/sigoCredentials";
 
 const router = Router();
 
-// POST /api/clients - Crear cliente  
+// POST /api/clients - Crear cliente
 router.post("/", extractSigoCredentialsWithAuth, validateClient, createClient);
 
 export default router;

@@ -41,8 +41,7 @@ export const validateClient = [
     .withMessage("Código postal no debe exceder 10 caracteres"),
 ];
 
-export interface ClientRequestWithCredentials
-  extends RequestWithSigoCredentials {
+export interface ClientRequestWithCredentials extends RequestWithSigoCredentials {
   body: {
     customerData: CreateClientData;
     eventType?: string;
@@ -64,11 +63,11 @@ export const createClient = async (
       return;
     }
 
-    // Verificar que tenemos credenciales
-    if (!req.sigoCredentials) {
+    // Verificar que tenemos headers de auth listos
+    if (!req.sigoAuthHeaders) {
       res.status(401).json({
-        error: "Credenciales SIGO requeridas",
-        message: "Middleware de credenciales no configurado correctamente",
+        error: "No autenticado",
+        message: "Faltan headers de autenticación de SIGO",
       });
       return;
     }
@@ -92,16 +91,11 @@ export const createClient = async (
       return;
     }
 
-    if (eventType) {
-      console.log(`[ClientController] Processing webhook event: ${eventType}`);
-    }
-
     const sigoService = getClientService();
 
-    // El servicio maneja automáticamente headers pre-configurados o credenciales
+    // Pasar solamente headers ya autenticados
     const result = await sigoService.createClient(
       customerData,
-      req.sigoCredentials,
       req.sigoAuthHeaders,
     );
 
@@ -114,7 +108,6 @@ export const createClient = async (
   } catch (error) {
     console.error("[ClientController] Error creando cliente:", error);
 
-    // Manejar error específico de cliente ya existente
     if (
       error instanceof Error &&
       (error as any)?.response?.headers?.["siigoapi-error-code"] ===
@@ -134,7 +127,6 @@ export const createClient = async (
       return;
     }
 
-    // Otros errores de validación de SIGO
     if (error instanceof Error && (error as any)?.response?.status === 400) {
       const responseData = (error as any)?.response?.data;
       res.status(400).json({

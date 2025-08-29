@@ -1,7 +1,6 @@
 import axios from "axios";
 import config from "@/shared/config";
-import { SigoCredentials } from "@/middleware/sigoCredentials";
-import SigoAuthService from "@/services/sigoAuthService";
+import type { SigoAuthHeaders } from "@/services/sigoAuthService";
 
 export interface CreateClientData {
   tipoDocumento: "RUC" | "DNI" | "CE" | "NIT" | "CC";
@@ -30,32 +29,14 @@ export class ClientService {
     });
   }
 
-  private async ensureAuth(credentials?: SigoCredentials, authHeaders?: any) {
-    // Si ya tenemos headers configurados, úsalos directamente
-    if (authHeaders?.Authorization && authHeaders?.["Partner-Id"]) {
-      this.client.defaults.headers["Authorization"] = authHeaders.Authorization;
-      this.client.defaults.headers["Partner-Id"] = authHeaders["Partner-Id"];
-      return;
-    }
-
-    // Si no hay headers pero sí credenciales, autenticar
-    if (credentials) {
-      await SigoAuthService.configureAxiosClient(this.client, credentials);
-      return;
-    }
-
-    throw new Error("Se requieren credenciales o headers de autenticación");
-  }
-
   async createClient(
     data: CreateClientData,
-    credentials?: SigoCredentials,
-    authHeaders?: any,
+    authHeaders: SigoAuthHeaders,
   ): Promise<any> {
-    await this.ensureAuth(credentials, authHeaders);
-
     const sigoPayload = this.buildSiigoCustomerPayload(data);
-    const response = await this.client.post("/v1/customers", sigoPayload);
+    const response = await this.client.post("/v1/customers", sigoPayload, {
+      headers: authHeaders,
+    });
     return response.data;
   }
 
@@ -86,7 +67,8 @@ export class ClientService {
     const palabras = nombreCompleto.split(" ");
 
     // Para compañías, usar dos tokens claros (evitar números u otros símbolos)
-    const sanitize = (s: string) => s.replace(/[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/g, "").toUpperCase();
+    const sanitize = (s: string) =>
+      s.replace(/[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/g, "").toUpperCase();
     const nombre = isCompany
       ? sanitize(palabras[0] || nombreCompleto) || "EMPRESA"
       : palabras[0] || nombreCompleto;
