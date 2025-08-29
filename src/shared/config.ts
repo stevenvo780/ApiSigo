@@ -14,8 +14,6 @@ export const config = {
   // SIGO API
   sigo: {
     baseUrl: process.env.SIGO_API_URL || "https://api.siigo.com",
-    apiKey: process.env.SIGO_API_KEY || "",
-    username: process.env.SIGO_USERNAME || "",
     timeout: parseInt(process.env.SIGO_TIMEOUT || "30000", 10),
     authTimeout: parseInt(process.env.SIGO_AUTH_TIMEOUT || "30000", 10),
     documentId: parseInt(process.env.SIIGO_DOCUMENT_ID || "28418", 10), // Factura electrónica

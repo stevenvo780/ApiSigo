@@ -17,6 +17,40 @@ export interface SigoAuthHeaders {
 
 export class SigoAuthService {
   /**
+   * Normaliza la access key de Siigo:
+   * - Si viene como "uuid:secret" => la convierte a base64
+   * - Si parece base64 y al decodificar contiene ":" => la deja tal cual
+   * - En otros casos, devuelve el valor original (fallback)
+   */
+  private static normalizeAccessKey(input: string): string {
+    const t = (input || "").trim();
+    if (!t) return t;
+
+    // Caso 1: viene en claro "uuid:secret" -> convertir a base64
+    if (t.includes(":")) {
+      try {
+        return Buffer.from(t, "utf8").toString("base64");
+      } catch {
+        return t;
+      }
+    }
+
+    // Caso 2: intentar decodificar como base64 y validar estructura
+    try {
+      const decoded = Buffer.from(t, "base64").toString("utf8");
+      if (decoded.includes(":")) {
+        // Ya es base64 válido para Siigo
+        return t;
+      }
+    } catch {
+      // ignorar y devolver original
+    }
+
+    // Fallback: devolver tal cual
+    return t;
+  }
+
+  /**
    * Extrae el Partner-Id del JWT token
    */
   public static extractPartnerIdFromToken(token: string): string | null {
@@ -45,10 +79,11 @@ export class SigoAuthService {
     try {
       logger.info("Iniciando autenticación con SIGO");
 
-      const authUrl = `${config.sigo.baseUrl}/auth`;
+      const authUrl = `${config.sigo.baseUrl}/auth/user-login`;
+      const accessKey = this.normalizeAccessKey(credentials.apiKey);
       const authData = {
         username: credentials.email,
-        access_key: credentials.apiKey,
+        access_key: accessKey,
       };
 
       logger.info(`Obteniendo token de autenticación desde ${authUrl}`);
