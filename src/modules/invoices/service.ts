@@ -36,6 +36,7 @@ export interface CreateInvoiceData {
   fechaVencimiento?: string;
   moneda?: string;
   cliente: {
+    id?: string;
     ruc?: string;
     nit?: string;
     razonSocial: string;
@@ -93,37 +94,56 @@ export class InvoiceService {
       document: {
         id: config.sigo.documentId,
       },
-      date: data.fechaEmision || new Date().toISOString().split("T")[0],
+      date:
+        data.fechaEmision ||
+        new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split("T")[0], // Fecha de ayer por defecto
+      seller: 52, // Vendedor válido (hola.salinero@salinero.co)
       customer: {
+        ...(data.cliente.id ? { id: data.cliente.id } : {}),
         identification: data.cliente.ruc || data.cliente.nit || "",
         branch_office: 0,
       },
       observations: data.observaciones,
-      items: data.items.map((it) => ({
-        code: it.codigo || it.sku,
-        description: it.descripcion || it.title,
-        quantity: it.cantidad ?? it.quantity ?? 1,
-        price: it.precioUnitario ?? it.price ?? 0,
-        taxes: config.sigo.taxId ? [{ id: config.sigo.taxId }] : undefined,
-        discount: 0,
-      })),
-      payments:
-        config.sigo.paymentMethodId && data.totales?.total
-          ? [
-              {
-                payment_method: config.sigo.paymentMethodId,
-                value: data.totales.total,
-                due_date:
-                  data.fechaVencimiento ||
-                  data.fechaEmision ||
-                  new Date().toISOString().split("T")[0],
-              },
-            ]
-          : undefined,
+      items: data.items.map((it) => {
+        const item: any = {
+          description: it.descripcion || it.title || "Producto",
+          quantity: it.cantidad ?? it.quantity ?? 1,
+          price: it.precioUnitario ?? it.price ?? 0,
+          taxes: config.sigo.taxId ? [{ id: config.sigo.taxId }] : undefined,
+          discount: 0,
+        };
+        if (it.codigo || it.sku) {
+          item.code = it.codigo || it.sku;
+        }
+        return item;
+      }),
+      payments: data.totales?.total
+        ? [
+            {
+              id: config.sigo.paymentMethodId || 0, // Debe configurarse según /v1/payment-types?document_type=FV
+              value: data.totales.total,
+              due_date:
+                data.fechaVencimiento ||
+                data.fechaEmision ||
+                new Date(Date.now() - 24 * 60 * 60 * 1000)
+                  .toISOString()
+                  .split("T")[0], // Fecha de ayer por defecto
+            },
+          ]
+        : [],
+      // currency omitida para evitar invalid_currency
     };
 
-    const response = await this.client.post("/v1/invoices", sigoPayload);
-    return response.data;
+    try {
+      const response = await this.client.post("/v1/invoices", sigoPayload);
+      return response.data;
+    } catch (error: any) {
+      console.error(
+        "[InvoiceService] SIGO API Error:",
+        error.response?.data || error.message,
+      );
+      throw error;
+    }
   }
 
   async getInvoice(

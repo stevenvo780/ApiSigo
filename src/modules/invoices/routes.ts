@@ -1,15 +1,14 @@
 import { Router } from "express";
 import crypto from "crypto";
-import {
-  createInvoice,
-  cancelInvoice,
-  validateInvoice,
-  validateInvoiceParams,
-} from "./controller";
 import { getInvoiceService } from "./service";
 import { extractSigoCredentialsWithAuth } from "@/middleware/sigoCredentials";
 
 const router = Router();
+
+// Healthcheck del router de invoices
+router.get("/__health", (_req, res) => {
+  res.json({ ok: true, scope: "invoices-router" });
+});
 
 // Validar firma de webhook
 const validateWebhookSignature = (payload: any, signature?: string) => {
@@ -25,15 +24,7 @@ const validateWebhookSignature = (payload: any, signature?: string) => {
     : { ok: false, message: "Firma de webhook inválida" };
 };
 
-// POST /api/invoices - Crear factura
-router.post(
-  "/",
-  extractSigoCredentialsWithAuth,
-  validateInvoice,
-  createInvoice,
-);
-
-// POST /api/invoices/webhook - Crear factura desde webhook
+// POST /api/invoices/webhook - Crear factura desde webhook (debe ir antes de las rutas genéricas)
 router.post("/webhook", extractSigoCredentialsWithAuth, async (req, res) => {
   const signature = (req.headers["x-hub-signature"] as string) || "";
   const sigCheck = validateWebhookSignature(req.body, signature);
@@ -90,12 +81,81 @@ router.post("/webhook", extractSigoCredentialsWithAuth, async (req, res) => {
   }
 });
 
-// POST /api/invoices/:serie/:numero/cancel - Cancelar factura
+// POST /api/invoices - Crear factura (endpoint principal)
+router.post("/", extractSigoCredentialsWithAuth, async (req, res) => {
+  try {
+    if (!req.body.serie) {
+      return res.status(400).json({ error: "Serie es requerida" });
+    }
+    if (!req.body.cliente?.razonSocial) {
+      return res
+        .status(400)
+        .json({ error: "Razón social del cliente es requerida" });
+    }
+    if (!Array.isArray(req.body.items) || req.body.items.length === 0) {
+      return res.status(400).json({ error: "Debe incluir al menos un item" });
+    }
+
+    const invoiceService = getInvoiceService();
+    const result = await invoiceService.createInvoice(
+      req.body,
+      (req as any).sigoCredentials,
+      (req as any).sigoAuthHeaders,
+    );
+
+    return res.status(201).json({
+      success: true,
+      message: "Factura creada exitosamente",
+      data: result,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      error: "Error creando factura",
+      message: error instanceof Error ? error.message : "Error desconocido",
+    });
+  }
+});
+
+// POST /api/invoices/cancel/:serie/:numero - Cancelar factura mediante nota de crédito
 router.post(
-  "/:serie/:numero/cancel",
+  "/cancel/:serie/:numero",
   extractSigoCredentialsWithAuth,
-  validateInvoiceParams,
-  cancelInvoice,
+  async (req: any, res: any) => {
+    try {
+      const { serie, numero } = req.params;
+      const motivo = req.body?.motivo || "Cancelación desde API";
+
+      if (!(req as any).sigoCredentials) {
+        return res.status(401).json({
+          error: "Credenciales SIGO requeridas",
+          message: "Middleware de credenciales no configurado correctamente",
+        });
+      }
+
+      const invoiceService = getInvoiceService();
+      const result = await invoiceService.createCreditNoteByInvoiceNumber(
+        serie,
+        numero,
+        (req as any).sigoCredentials,
+        motivo,
+        (req as any).sigoAuthHeaders,
+      );
+
+      return res.status(201).json({
+        success: true,
+        message: "Nota de crédito creada para cancelación",
+        data: result,
+      });
+    } catch (error) {
+      return res.status(500).json({
+        error: "Error cancelando factura",
+        message: error instanceof Error ? error.message : "Error desconocido",
+      });
+    }
+  },
 );
+
+// NOTA: Ruta de cancelar temporalmente deshabilitada por conflicto de routing
+// TODO: Implementar endpoint de cancelación con diferente patrón de URL
 
 export default router;

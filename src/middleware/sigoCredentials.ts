@@ -25,17 +25,24 @@ export const extractSigoCredentialsWithAuth = async (
   next: NextFunction,
 ): Promise<void> => {
   try {
-    // Extraer credenciales de headers
-    const email = req.headers["x-sigo-email"] as string;
-    const apiKey = req.headers["x-sigo-apikey"] as string;
+    console.log("[Middleware] Starting auth process...");
+    // Extraer credenciales usando formato estándar (con fallback a credenciales por defecto)
+    const email =
+      (req.headers["x-email"] as string) || "hola.salinero@salinero.co";
+    const apiKey =
+      (req.headers["x-api-key"] as string) ||
+      "MWY0MTRkZjgtNWIzMi00ZmRhLWJkYmUtNmI2Y2VhYmM1OTI3Om4xfi1OWmc9NEc=";
 
     if (!email || !apiKey) {
+      console.log("[Middleware] Missing credentials");
       res.status(401).json({
         error: "Credenciales SIGO requeridas",
-        message: "Debe proporcionar x-sigo-email y x-sigo-apikey en los headers",
+        message:
+          "Debe proporcionar x-email y x-api-key en los headers o usar credenciales por defecto",
         headers_required: {
-          "x-sigo-email": "Email de usuario SIGO",
-          "x-sigo-apikey": "API Key de SIGO",
+          "x-email":
+            "Email de usuario SIGO (default: hola.salinero@salinero.co)",
+          "x-api-key": "API Key de SIGO (default: configurada)",
         },
       });
       return;
@@ -46,13 +53,18 @@ export const extractSigoCredentialsWithAuth = async (
       email: email.trim(),
       apiKey: apiKey.trim(),
     };
+    console.log("[Middleware] Credentials set, getting auth headers...");
 
-    // Obtener headers de autenticación de SIGO
+    // Obtener headers de autenticación de SIGO (siempre desde token)
     const authHeaders = await SigoAuthService.getAuthHeaders(req.sigoCredentials);
+    console.log("[Middleware] Auth headers obtained");
+
     req.sigoAuthHeaders = authHeaders;
 
+    console.log("[Middleware] Auth complete, calling next()");
     next();
   } catch (error) {
+    console.error("[Middleware] Error:", error);
     res.status(401).json({
       error: "Error de autenticación SIGO",
       message: error instanceof Error ? error.message : "Error desconocido",

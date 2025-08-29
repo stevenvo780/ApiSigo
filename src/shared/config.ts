@@ -1,6 +1,7 @@
 import dotenv from "dotenv";
 
-dotenv.config();
+// Cargar .env y sobrescribir variables de entorno previas para evitar defaults del entorno
+dotenv.config({ override: true });
 
 export const config = {
   // Server
@@ -17,18 +18,14 @@ export const config = {
     username: process.env.SIGO_USERNAME || "",
     timeout: parseInt(process.env.SIGO_TIMEOUT || "30000", 10),
     authTimeout: parseInt(process.env.SIGO_AUTH_TIMEOUT || "30000", 10),
-    documentId: process.env.SIIGO_DOCUMENT_ID
-      ? parseInt(process.env.SIIGO_DOCUMENT_ID, 10)
-      : 1,
+    documentId: parseInt(process.env.SIIGO_DOCUMENT_ID || "28418", 10), // ID válido de SIGO para factura electrónica
     taxId: process.env.SIIGO_TAX_ID
       ? parseInt(process.env.SIIGO_TAX_ID, 10)
       : undefined,
     paymentMethodId: process.env.SIIGO_PAYMENT_METHOD_ID
       ? parseInt(process.env.SIIGO_PAYMENT_METHOD_ID, 10)
-      : undefined,
-    creditNoteDocumentId: process.env.SIIGO_CREDIT_NOTE_DOCUMENT_ID
-      ? parseInt(process.env.SIIGO_CREDIT_NOTE_DOCUMENT_ID, 10)
-      : 2,
+      : 1, // Método de pago válido para SIGO
+    creditNoteDocumentId: parseInt(process.env.SIIGO_CREDIT_NOTE_DOCUMENT_ID || "91", 10),
   },
 
   // Webhooks

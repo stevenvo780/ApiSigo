@@ -12,7 +12,22 @@ export const validateInvoice = [
   body("fechaEmision")
     .optional()
     .isISO8601()
-    .withMessage("Fecha de emisión debe ser válida"),
+    .withMessage("Fecha de emisión debe ser válida")
+    .custom((value) => {
+      if (value) {
+        const inputDate = new Date(value);
+        const today = new Date();
+        const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        
+        if (inputDate > today) {
+          throw new Error("La fecha de emisión no puede ser futura");
+        }
+        if (inputDate < yesterday) {
+          throw new Error("La fecha de emisión no puede ser muy antigua");
+        }
+      }
+      return true;
+    }),
   body("cliente.razonSocial")
     .notEmpty()
     .withMessage("Razón social del cliente es requerida"),
@@ -56,8 +71,11 @@ export const createInvoice = async (
   next: NextFunction,
 ): Promise<void> => {
   try {
+    console.log("[Controller] Received invoice data:", JSON.stringify(req.body, null, 2));
+    
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
+      console.log("[Controller] Validation errors:", errors.array());
       res.status(400).json({
         error: "Datos inválidos",
         details: errors.array(),
@@ -67,6 +85,7 @@ export const createInvoice = async (
 
     // Verificar que tenemos credenciales
     if (!req.sigoCredentials) {
+      console.log("[Controller] Missing credentials");
       res.status(401).json({
         error: "Credenciales SIGO requeridas",
         message: "Middleware de credenciales no configurado correctamente",
@@ -77,6 +96,7 @@ export const createInvoice = async (
     const invoiceData = req.body;
     const invoiceService = getInvoiceService();
     
+    console.log("[Controller] Calling invoice service...");
     // El servicio maneja automáticamente headers pre-configurados o credenciales
     const result = await invoiceService.createInvoice(
       invoiceData,

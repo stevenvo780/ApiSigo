@@ -21,7 +21,7 @@ export const validateClient = [
     .withMessage("Email debe ser válido"),
   body("customerData.telefono")
     .optional()
-    .isMobilePhone("es-PE")
+    .isMobilePhone("es-CO")
     .withMessage("Teléfono debe ser válido"),
   body("customerData.direccion")
     .optional()
@@ -97,7 +97,7 @@ export const createClient = async (
     }
 
     const sigoService = getClientService();
-    
+
     // El servicio maneja automáticamente headers pre-configurados o credenciales
     const result = await sigoService.createClient(
       customerData,
@@ -113,6 +113,39 @@ export const createClient = async (
     });
   } catch (error) {
     console.error("[ClientController] Error creando cliente:", error);
+
+    // Manejar error específico de cliente ya existente
+    if (
+      error instanceof Error &&
+      (error as any)?.response?.headers?.["siigoapi-error-code"] ===
+        "already_exists"
+    ) {
+      res.status(409).json({
+        success: false,
+        error: "Cliente ya existe",
+        message: "El cliente con este número de documento ya existe en SIGO",
+        code: "CLIENT_ALREADY_EXISTS",
+        details: {
+          numeroDocumento: req.body.customerData?.numeroDocumento,
+          suggestion:
+            "Use un número de documento diferente o actualice el cliente existente",
+        },
+      });
+      return;
+    }
+
+    // Otros errores de validación de SIGO
+    if (error instanceof Error && (error as any)?.response?.status === 400) {
+      const responseData = (error as any)?.response?.data;
+      res.status(400).json({
+        success: false,
+        error: "Error de validación en SIGO",
+        message: responseData?.message || "Los datos enviados no son válidos",
+        details: responseData?.Errors || responseData,
+      });
+      return;
+    }
+
     next(error);
   }
 };

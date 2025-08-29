@@ -22,7 +22,13 @@ export class SigoAuthService {
   public static extractPartnerIdFromToken(token: string): string | null {
     try {
       // Decodificar el JWT sin verificar la firma (solo para extraer payload)
-      const payload = JSON.parse(atob(token.split(".")[1]));
+      // Node no tiene atob; usar Buffer y soportar base64url
+      const part = token.split(".")[1];
+      if (!part) return null;
+      const base64 = part.replace(/-/g, "+").replace(/_/g, "/");
+      const padded = base64 + "===".slice((base64.length + 3) % 4);
+      const json = Buffer.from(padded, "base64").toString("utf8");
+      const payload = JSON.parse(json);
       return payload.api_subscription_key || null;
     } catch (error) {
       logger.error("Error extrayendo Partner-Id del token:", error);
