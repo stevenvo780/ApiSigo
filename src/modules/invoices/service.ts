@@ -260,7 +260,6 @@ export class InvoiceService {
     data: CreateInvoiceData,
     authHeaders: SigoAuthHeaders,
   ): Promise<any> {
-    // Validar/crear cliente si se proporciona customerData
     if (data.customerData && data.customerData.numeroDocumento) {
       const existingCustomer = await this.findCustomerByIdentification(
         data.customerData.numeroDocumento,
