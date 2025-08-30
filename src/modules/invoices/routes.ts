@@ -4,21 +4,19 @@ import {
   cancelInvoice,
   validateInvoice,
   validateInvoiceParams,
-  validateWebhookInvoice,
-  createInvoiceFromWebhook,
+  getPaymentTypes,
 } from "./controller";
 
 const router = Router();
 
-// Healthcheck del router de invoices
 router.get("/__health", (_req, res) => {
   res.json({ ok: true, scope: "invoices-router" });
 });
 
-// POST /api/invoices/webhook - Crear factura desde webhook
-router.post("/webhook", validateWebhookInvoice, createInvoiceFromWebhook);
+// GET /api/invoices/payment-types - Obtener métodos de pago disponibles
+router.get("/payment-types", getPaymentTypes);
 
-// POST /api/invoices - Crear factura (endpoint principal)
+// POST /api/invoices - Crear factura (único endpoint)
 router.post("/", validateInvoice, createInvoice);
 
 // POST /api/invoices/cancel/:serie/:numero - Cancelar factura mediante nota de crédito

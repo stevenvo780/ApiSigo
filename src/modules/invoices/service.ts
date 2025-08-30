@@ -3,45 +3,29 @@ import config from "@/shared/config";
 import type { SigoAuthHeaders } from "@/services/sigoAuthService";
 
 export interface InvoiceItem {
-  codigo?: string;
-  sku?: string;
-  descripcion?: string;
-  title?: string;
-  cantidad?: number;
-  quantity?: number;
-  precioUnitario?: number;
-  price?: number;
+  code: string;
+  description: string;
+  quantity: number;
+  price: number;
+  discount?: number;
+  taxes?: Array<{ id: number }>;
 }
 
-export interface InvoiceTotals {
-  subtotal: number;
-  igv?: number;
-  iva?: number;
-  total: number;
+export interface InvoicePayment {
+  id: number;
+  value: number;
+  due_date: string;
 }
 
 export interface CreateInvoiceData {
-  tipoDocumento?: string;
-  serie?: string;
-  numero?: number;
-  fechaEmision?: string;
-  fechaVencimiento?: string;
-  moneda?: string;
-  cliente: {
-    id?: string;
-    ruc?: string;
-    nit?: string;
-    razonSocial: string;
-    direccion?: string;
-    email?: string;
-    telefono?: string;
-    tipo_documento?: string;
+  date?: string;
+  customer: {
+    identification: string;
+    branch_office?: number;
   };
   items: InvoiceItem[];
-  totales?: InvoiceTotals;
-  observaciones?: string;
-  orderId?: string | number;
-  metadata?: Record<string, any>;
+  payments?: InvoicePayment[];
+  observations?: string;
 }
 
 export class InvoiceService {
@@ -64,45 +48,34 @@ export class InvoiceService {
   ): Promise<any> {
     const sigoPayload: any = {
       document: {
-        id: config.sigo.documentId.toString(), // Convertir a string
+        id: config.sigo.documentId, // ID del tipo de documento
       },
-      date:
-        data.fechaEmision ||
-        new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split("T")[0], // Fecha de ayer por defecto
+      date: data.date || new Date().toISOString().split("T")[0],
       seller: config.sigo.sellerId,
       customer: {
-        ...(data.cliente.id ? { id: data.cliente.id } : {}),
-        identification: data.cliente.ruc || data.cliente.nit || "999888777", // Fallback válido
-        branch_office: 0,
+        identification: data.customer.identification,
+        branch_office: data.customer.branch_office || 0,
       },
-      observations: data.observaciones,
-      items: data.items.map((it) => {
-        const item: any = {
-          description: it.descripcion || it.title || "Producto",
-          quantity: it.cantidad ?? it.quantity ?? 1,
-          price: it.precioUnitario ?? it.price ?? 0,
-          discount: 0,
-        };
-        const code = it.codigo || it.sku;
-        if (code) item.code = code;
-        else if (config.sigo.taxId) item.taxes = [{ id: config.sigo.taxId }];
-        return item;
-      }),
-      payments: data.totales?.total
-        ? [
-            {
-              id: config.sigo.paymentMethodId || 0, // Debe configurarse según /v1/payment-types?document_type=FV
-              value: data.totales.total,
-              due_date:
-                data.fechaVencimiento ||
-                data.fechaEmision ||
-                new Date(Date.now() - 24 * 60 * 60 * 1000)
-                  .toISOString()
-                  .split("T")[0], // Fecha de ayer por defecto
-            },
-          ]
-        : [],
-      // currency omitida para evitar invalid_currency
+      observations: data.observations,
+      items: data.items.map((item) => ({
+        code: item.code,
+        description: item.description,
+        quantity: item.quantity,
+        price: item.price,
+        discount: item.discount || 0,
+        ...(item.taxes && { taxes: item.taxes }),
+      })),
+      payments: data.payments || [
+        {
+          id: config.sigo.paymentMethodId || 1,
+          value: data.items.reduce(
+            (total, item) =>
+              total + (item.quantity * item.price - (item.discount || 0)),
+            0,
+          ),
+          due_date: data.date || new Date().toISOString().split("T")[0],
+        },
+      ],
     };
 
     try {
@@ -134,6 +107,17 @@ export class InvoiceService {
     );
     const items = res.data?.results || res.data || [];
     return Array.isArray(items) ? items[0] : items;
+  }
+
+  async getPaymentTypes(
+    authHeaders: SigoAuthHeaders,
+    documentType: string = "FV",
+  ): Promise<any> {
+    const response = await this.client.get(
+      `/v1/payment-types?document_type=${documentType}`,
+      { headers: authHeaders },
+    );
+    return response.data;
   }
 
   async createCreditNoteByInvoiceNumber(
@@ -181,47 +165,6 @@ export class InvoiceService {
       headers: authHeaders,
     });
     return response.data;
-  }
-
-  async createInvoiceFromWebhook(
-    orderData: any,
-    authHeaders: SigoAuthHeaders,
-  ): Promise<any> {
-    // Validar datos mínimos
-    if (!orderData.items || orderData.items.length === 0) {
-      throw new Error("No se encontraron items en la orden");
-    }
-
-    if (!orderData.amount || orderData.amount <= 0) {
-      throw new Error("Monto inválido");
-    }
-
-    // Transformar datos del webhook al formato de SIGO
-    const invoiceData = {
-      fechaEmision: orderData.paid_at
-        ? new Date(orderData.paid_at).toISOString().split("T")[0]
-        : new Date().toISOString().split("T")[0],
-      cliente: {
-        razonSocial:
-          orderData.customer?.name || `Cliente Orden ${orderData.order_id}`,
-        nit: orderData.customer?.identification || "",
-        email: orderData.customer?.email,
-        telefono: orderData.customer?.phone,
-      },
-      items: orderData.items.map((item: any) => ({
-        descripcion: item.product_name || item.title || "Producto",
-        cantidad: item.quantity || 1,
-        precioUnitario: item.unit_price || item.price || 0,
-      })),
-      totales: {
-        total: orderData.amount / 100, // Convertir de centavos a unidades
-        subtotal: orderData.amount / 100,
-      },
-      orderId: orderData.order_id,
-      observaciones: `Orden desde webhook: ${orderData.order_id}`,
-    };
-
-    return await this.createInvoice(invoiceData, authHeaders);
   }
 }
 

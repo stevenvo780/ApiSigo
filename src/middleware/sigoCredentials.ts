@@ -1,6 +1,5 @@
 import { Request, Response, NextFunction } from "express";
 import SigoAuthService from "@/services/sigoAuthService";
-import crypto from "crypto";
 
 export interface SigoCredentials {
   email: string;
@@ -37,7 +36,7 @@ export const extractSigoCredentialsWithAuth = async (
     }
 
     const signature = (req.headers["x-hub-signature"] as string) || "";
-    if (!verifyWebhookSignature(req.body, signature)) {
+    if (!verifyWebhookSignature(signature)) {
       res.status(401).json({ error: "Firma de webhook inválida" });
       return;
     }
@@ -61,15 +60,10 @@ export const extractSigoCredentialsWithAuth = async (
   }
 };
 
-const verifyWebhookSignature = (payload: any, signature?: string): boolean => {
+const verifyWebhookSignature = (signature?: string): boolean => {
   if (!signature) return false;
   const secret = process.env.HUB_WEBHOOK_SECRET || "";
-  const expected = crypto
-    .createHmac("sha256", secret)
-    .update(JSON.stringify(payload))
-    .digest("hex");
-  const provided = signature.replace("sha256=", "");
-  return provided === expected;
+  return signature === secret;
 };
 
 export default extractSigoCredentialsWithAuth;

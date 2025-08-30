@@ -1,52 +1,54 @@
-import { Request, Response, NextFunction } from "express";
+import { Response, NextFunction } from "express";
 import { body, param, validationResult } from "express-validator";
 
 import { getInvoiceService, CreateInvoiceData } from "./service";
 import { RequestWithSigoCredentials } from "@/middleware/sigoCredentials";
 
 export const validateInvoice = [
-  body("serie").notEmpty().withMessage("Serie es requerida"),
-  body("numero")
+  body("date")
     .optional()
-    .isInt({ min: 1 })
-    .withMessage("Número debe ser un entero positivo"),
-  body("fechaEmision")
-    .optional()
-    .isISO8601()
-    .withMessage("Fecha de emisión debe ser válida")
-    .custom((value) => {
-      if (value) {
-        const inputDate = new Date(value);
-        const today = new Date();
-        const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
-        if (inputDate > today) {
-          throw new Error("La fecha de emisión no puede ser futura");
-        }
-        if (inputDate < yesterday) {
-          throw new Error("La fecha de emisión no puede ser muy antigua");
-        }
-      }
-      return true;
-    }),
-  body("cliente.razonSocial")
+    .matches(/^\d{4}-\d{2}-\d{2}$/)
+    .withMessage("Fecha debe estar en formato YYYY-MM-DD"),
+  body("customer.identification")
     .notEmpty()
-    .withMessage("Razón social del cliente es requerida"),
+    .withMessage("Identificación del cliente es requerida"),
+  body("customer.branch_office")
+    .optional()
+    .isInt({ min: 0 })
+    .withMessage("Sucursal debe ser un número entero mayor o igual a 0"),
   body("items")
     .isArray({ min: 1 })
     .withMessage("Debe incluir al menos un item"),
-  body("items.*.descripcion")
+  body("items.*.code").notEmpty().withMessage("Código del item es requerido"),
+  body("items.*.description")
     .notEmpty()
     .withMessage("Descripción del item es requerida"),
-  body("items.*.cantidad")
-    .isFloat({ min: 0 })
+  body("items.*.quantity")
+    .isFloat({ min: 0.01 })
     .withMessage("Cantidad debe ser mayor a 0"),
-  body("items.*.precioUnitario")
+  body("items.*.price")
     .isFloat({ min: 0 })
-    .withMessage("Precio unitario debe ser mayor a 0"),
-  body("totales.total")
+    .withMessage("Precio debe ser mayor o igual a 0"),
+  body("payments")
     .optional()
-    .isFloat({ min: 0 })
-    .withMessage("Total debe ser mayor a 0"),
+    .isArray()
+    .withMessage("Los pagos deben ser un array si se proporcionan"),
+  body("payments.*.id")
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage("ID del método de pago debe ser un entero positivo"),
+  body("payments.*.value")
+    .optional()
+    .isFloat({ min: 0.01 })
+    .withMessage("Valor del pago debe ser mayor a 0"),
+  body("payments.*.due_date")
+    .optional()
+    .matches(/^\d{4}-\d{2}-\d{2}$/)
+    .withMessage("Fecha de vencimiento debe estar en formato YYYY-MM-DD"),
+  body("observations")
+    .optional()
+    .isLength({ max: 500 })
+    .withMessage("Las observaciones no deben exceder 500 caracteres"),
 ];
 
 export const validateInvoiceParams = [
@@ -64,55 +66,6 @@ export interface InvoiceParamsRequest extends RequestWithSigoCredentials {
     numero: string;
   };
 }
-
-export const validateWebhookInvoice = [
-  body("event_type")
-    .equals("pedido.pagado")
-    .withMessage("Tipo de evento debe ser pedido.pagado"),
-  body("data.items")
-    .isArray({ min: 1 })
-    .withMessage("Debe incluir al menos un item"),
-  body("data.amount")
-    .isNumeric()
-    .custom((v) => v > 0)
-    .withMessage("Monto debe ser mayor a 0"),
-];
-
-export const createInvoiceFromWebhook = async (
-  req: RequestWithSigoCredentials & Request,
-  res: Response,
-  next: NextFunction,
-): Promise<void> => {
-  try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      res.status(400).json({
-        error: "Datos inválidos",
-        details: errors.array(),
-      });
-      return;
-    }
-
-    const invoiceService = getInvoiceService();
-    const result = await invoiceService.createInvoiceFromWebhook(
-      (req.body as any).data,
-      req.sigoAuthHeaders!,
-    );
-
-    res.status(200).json({
-      status: "success",
-      factura_id: result.id || result.numero_documento,
-      numero_factura: result.number || result.numero_documento,
-      estado: "CREADA",
-      sigo_id: result.id,
-      pdf_url: result.pdf_url,
-      xml_url: result.xml_url,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
 export const createInvoice = async (
   req: InvoiceRequest,
   res: Response,
@@ -128,11 +81,9 @@ export const createInvoice = async (
       return;
     }
 
-    const invoiceData = req.body;
     const invoiceService = getInvoiceService();
-
     const result = await invoiceService.createInvoice(
-      invoiceData,
+      req.body,
       req.sigoAuthHeaders!,
     );
 
@@ -140,6 +91,30 @@ export const createInvoice = async (
       success: true,
       message: "Factura creada exitosamente",
       data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getPaymentTypes = async (
+  req: RequestWithSigoCredentials,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    const invoiceService = getInvoiceService();
+    const documentType = (req.query.document_type as string) || "FV";
+
+    const paymentTypes = await invoiceService.getPaymentTypes(
+      req.sigoAuthHeaders!,
+      documentType,
+    );
+
+    res.status(200).json({
+      success: true,
+      data: paymentTypes,
+      message: `Métodos de pago disponibles para documento tipo ${documentType}`,
     });
   } catch (error) {
     next(error);
