@@ -119,11 +119,6 @@ export interface GrafOrderItem {
 export const convertGrafOrderToSigoInvoice = (
   grafOrder: GrafOrderFromHub,
 ): CreateInvoiceData => {
-  console.log("[convertGrafOrderToSigoInvoice] Received Graf Order:", {
-    orderId: grafOrder.id,
-    customer: grafOrder.customer,
-    user: grafOrder.user
-  });
   
   // Create customer data if we have documentNumber from customer OR user
   const documentNumber = grafOrder.customer?.documentNumber || grafOrder.user?.documentNumber;
@@ -145,13 +140,6 @@ export const convertGrafOrderToSigoInvoice = (
     grafOrder.user?.documentNumber ||
     "222222222222";
   
-  console.log("[convertGrafOrderToSigoInvoice] Final identification:", {
-    customerDocumentNumber: grafOrder.customer?.documentNumber,
-    userDocumentNumber: grafOrder.user?.documentNumber,
-    userEmail: grafOrder.user?.email,
-    finalIdentification,
-    customerDataWillBeCreated: !!customerData
-  });
 
   return {
     date: new Date().toISOString().split("T")[0],
@@ -279,11 +267,6 @@ export class InvoiceService {
     data: CreateInvoiceData,
     authHeaders: SigoAuthHeaders,
   ): Promise<any> {
-    console.log("🔥 [InvoiceService] createInvoice called with data:", {
-      customerIdentification: data.customer.identification,
-      hasCustomerData: !!data.customerData,
-      customerDataDocument: data.customerData?.numeroDocumento
-    });
     if (data.customerData && data.customerData.numeroDocumento) {
       const existingCustomer = await this.findCustomerByIdentification(
         data.customerData.numeroDocumento,
@@ -292,21 +275,17 @@ export class InvoiceService {
       
       if (!existingCustomer) {
         try {
-          console.log("[InvoiceService] Creando cliente antes de facturar:", data.customerData);
           await this.createCustomer(data.customerData, authHeaders);
-          console.log("[InvoiceService] Cliente creado exitosamente");
         } catch (error: any) {
           if (
             error?.response?.headers?.["siigoapi-error-code"] === "already_exists"
           ) {
-            console.log("[InvoiceService] Cliente ya existe, continuando con la factura");
           } else {
             console.error("[InvoiceService] Error creando cliente:", error);
             throw new Error(`Error creando cliente: ${error.message}`);
           }
         }
       } else {
-        console.log("[InvoiceService] Cliente ya existe, usando cliente existente");
       }
     }
     const sigoPayload: any = {
@@ -342,19 +321,11 @@ export class InvoiceService {
     };
 
     try {
-      console.log(
-        "[InvoiceService] SIGO Payload:",
-        JSON.stringify(sigoPayload, null, 2),
-      );
       const response = await this.client.post("/v1/invoices", sigoPayload, {
         headers: authHeaders,
       });
       return response.data;
     } catch (error: any) {
-      console.log("[InvoiceService] SIGO API Error:", {
-        Status: error.response?.status,
-        Errors: error.response?.data?.Errors || error.response?.data,
-      });
       throw error;
     }
   }

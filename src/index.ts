@@ -124,7 +124,7 @@ process.on("unhandledRejection", (reason: any, promise: Promise<any>) => {
 });
 
 const server = app.listen(PORT, () => {
-  console.log(`
+  console.info(`
 🚀 SIGO API Server iniciado
 📍 Puerto: ${PORT}
 🌍 Entorno: ${process.env.NODE_ENV || "development"}
@@ -134,16 +134,16 @@ const server = app.listen(PORT, () => {
 });
 
 process.on("SIGTERM", () => {
-  console.log("SIGTERM signal received: closing HTTP server");
+  console.info("SIGTERM signal received: closing HTTP server");
   server.close(() => {
-    console.log("HTTP server closed");
+    console.info("HTTP server closed");
   });
 });
 
 process.on("SIGINT", () => {
-  console.log("SIGINT signal received: closing HTTP server");
+  console.info("SIGINT signal received: closing HTTP server");
   server.close(() => {
-    console.log("HTTP server closed");
+    console.info("HTTP server closed");
   });
 });
 

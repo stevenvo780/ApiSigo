@@ -72,7 +72,6 @@ export const createInvoice = async (
   next: NextFunction,
 ): Promise<void> => {
   try {
-    console.log("🔥 [Controller] createInvoice called with body:", JSON.stringify(req.body, null, 2));
     
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
