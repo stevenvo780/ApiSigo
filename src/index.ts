@@ -1,7 +1,7 @@
 import express, { Express } from "express";
 import cors from "cors";
 
-// Módulos
+
 import { routes as invoiceRoutes } from "@/modules/invoices";
 
 import {
@@ -37,7 +37,7 @@ app.use(
   }),
 );
 
-// Simplified JSON parser (removed rawBody verification used for webhooks)
+
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
@@ -148,5 +148,5 @@ process.on("SIGINT", () => {
 });
 
 export default app;
-// CommonJS default export for Jest/supertest
+
 module.exports = app;

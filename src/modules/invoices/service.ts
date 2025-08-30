@@ -120,7 +120,7 @@ export const convertGrafOrderToSigoInvoice = (
   grafOrder: GrafOrderFromHub,
 ): CreateInvoiceData => {
   
-  // Create customer data if we have documentNumber from customer OR user
+
   const documentNumber = grafOrder.customer?.documentNumber || grafOrder.user?.documentNumber;
   const customerData = documentNumber ? {
     tipoDocumento: "CC" as const,
@@ -290,7 +290,7 @@ export class InvoiceService {
     }
     const sigoPayload: any = {
       document: {
-        id: config.sigo.documentId, // ID del tipo de documento
+        id: config.sigo.documentId,
       },
       date: data.date || new Date().toISOString().split("T")[0],
       seller: config.sigo.sellerId,
@@ -402,7 +402,7 @@ export class InvoiceService {
   }
 }
 
-// Singleton
+
 let invoiceServiceInstance: InvoiceService | null = null;
 
 export const getInvoiceService = (): InvoiceService => {

@@ -118,7 +118,6 @@ export const errorHandler = (
   });
 };
 
-
 /**
  * Middleware para rutas no encontradas
  */
@@ -131,7 +130,6 @@ export const notFound = (
   error.statusCode = 404;
   next(error);
 };
-
 
 /**
  * Middleware de logging de requests

@@ -26,7 +26,6 @@ export class SigoAuthService {
     const t = (input || "").trim();
     if (!t) return t;
 
-    // Caso 1: viene en claro "uuid:secret" -> convertir a base64
     if (t.includes(":")) {
       try {
         return Buffer.from(t, "utf8").toString("base64");
@@ -35,18 +34,13 @@ export class SigoAuthService {
       }
     }
 
-    // Caso 2: intentar decodificar como base64 y validar estructura
     try {
       const decoded = Buffer.from(t, "base64").toString("utf8");
       if (decoded.includes(":")) {
-        // Ya es base64 válido para Siigo
         return t;
       }
-    } catch {
-      // ignorar y devolver original
-    }
+    } catch {}
 
-    // Fallback: devolver tal cual
     return t;
   }
 
@@ -55,8 +49,6 @@ export class SigoAuthService {
    */
   public static extractPartnerIdFromToken(token: string): string | null {
     try {
-      // Decodificar el JWT sin verificar la firma (solo para extraer payload)
-      // Node no tiene atob; usar Buffer y soportar base64url
       const part = token.split(".")[1];
       if (!part) return null;
       const base64 = part.replace(/-/g, "+").replace(/_/g, "/");
@@ -101,7 +93,6 @@ export class SigoAuthService {
 
       const token = response.data.access_token;
 
-      // Guardar token en caché
       AuthenticationCache.setToken(
         credentials.email,
         credentials.apiKey,
@@ -122,18 +113,15 @@ export class SigoAuthService {
   public static async getAuthHeaders(
     credentials: SigoCredentials,
   ): Promise<SigoAuthHeaders> {
-    // Verificar si tenemos token en cache
     let token = AuthenticationCache.getToken(
       credentials.email,
       credentials.apiKey,
     );
 
-    // Si no hay token en cache, autenticar
     if (!token) {
       token = await this.authenticate(credentials);
     }
 
-    // Extraer Partner-Id del token
     const partnerId = this.extractPartnerIdFromToken(token);
     if (!partnerId) {
       throw new Error("No se pudo extraer Partner-Id del token");
@@ -144,7 +132,6 @@ export class SigoAuthService {
       "Partner-Id": partnerId,
     };
   }
-
 }
 
 export default SigoAuthService;
