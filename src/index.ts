@@ -3,7 +3,6 @@ import cors from "cors";
 
 // Módulos
 import { routes as invoiceRoutes } from "@/modules/invoices";
-import { routes as clientRoutes } from "@/modules/clients";
 
 import {
   errorHandler,
@@ -58,7 +57,6 @@ app.get("/api", (req, res) => {
     environment: process.env.NODE_ENV || "development",
     endpoints: {
       invoices: "/api/invoices",
-      clients: "/api/clients",
     },
     documentation: "/api/docs",
     timestamp: new Date().toISOString(),
@@ -66,7 +64,6 @@ app.get("/api", (req, res) => {
 });
 
 app.use("/api/invoices", invoiceRoutes);
-app.use("/api/clients", clientRoutes);
 
 app.get("/api/docs", (req, res) => {
   res.json({
@@ -77,9 +74,6 @@ app.get("/api/docs", (req, res) => {
         "POST /api/invoices/webhook": "Crear factura desde webhook",
         "POST /api/invoices/:serie/:numero/cancel":
           "Anular factura (crear nota de crédito)",
-      },
-      clients: {
-        "POST /api/clients": "Crear nuevo cliente",
       },
     },
     schemas: {

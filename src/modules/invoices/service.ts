@@ -2,6 +2,28 @@ import axios from "axios";
 import config from "@/shared/config";
 import type { SigoAuthHeaders } from "@/services/sigoAuthService";
 
+export interface CreateClientData {
+  tipoDocumento: "RUC" | "DNI" | "CE" | "NIT" | "CC";
+  numeroDocumento: string;
+  razonSocial: string;
+  email?: string;
+  telefono?: string;
+  direccion?: string;
+  ciudad?: string;
+  departamento?: string;
+  codigoPostal?: string;
+  activo?: boolean;
+}
+
+export interface ClientSearchResponse {
+  results: any[];
+}
+
+interface CustomerForInvoice {
+  identification: string;
+  branch_office?: number;
+}
+
 export interface InvoiceItem {
   code: string;
   description: string;
@@ -19,10 +41,8 @@ export interface InvoicePayment {
 
 export interface CreateInvoiceData {
   date?: string;
-  customer: {
-    identification: string;
-    branch_office?: number;
-  };
+  customer: CustomerForInvoice;
+  customerData?: CreateClientData;
   items: InvoiceItem[];
   payments?: InvoicePayment[];
   observations?: string;
@@ -98,6 +118,19 @@ export interface GrafOrderItem {
 export const convertGrafOrderToSigoInvoice = (
   grafOrder: GrafOrderFromHub,
 ): CreateInvoiceData => {
+  const customerData = grafOrder.customer?.identification ? {
+    tipoDocumento: "CC" as const,
+    numeroDocumento: grafOrder.customer.identification,
+    razonSocial: grafOrder.customer.name || "Cliente Sin Nombre",
+    email: grafOrder.customer.email,
+    telefono: grafOrder.customer.phone,
+    direccion: grafOrder.shippingAddress ? 
+      `${grafOrder.shippingAddress.address}, ${grafOrder.shippingAddress.city}, ${grafOrder.shippingAddress.department}` : 
+      undefined,
+    ciudad: grafOrder.shippingAddress?.city,
+    departamento: grafOrder.shippingAddress?.department,
+  } : undefined;
+
   return {
     date: new Date().toISOString().split("T")[0],
     customer: {
@@ -107,6 +140,7 @@ export const convertGrafOrderToSigoInvoice = (
         "12345678",
       branch_office: 0,
     },
+    customerData,
     items: grafOrder.items.map((item) => ({
       code: item.product.code || `GRAF-${item.product.id}`,
       description: item.product.title,
@@ -132,10 +166,126 @@ export class InvoiceService {
     });
   }
 
+  async findCustomerByIdentification(
+    identification: string,
+    authHeaders: SigoAuthHeaders,
+  ): Promise<any> {
+    try {
+      const response = await this.client.get(
+        `/v1/customers?identification=${encodeURIComponent(identification)}`,
+        { headers: authHeaders }
+      );
+      const results = response.data?.results || [];
+      return results.length > 0 ? results[0] : null;
+    } catch (error) {
+      console.error("[InvoiceService] Error buscando cliente:", error);
+      return null;
+    }
+  }
+
+  async createCustomer(
+    data: CreateClientData,
+    authHeaders: SigoAuthHeaders,
+  ): Promise<any> {
+    const sigoPayload = this.buildSiigoCustomerPayload(data);
+    const response = await this.client.post("/v1/customers", sigoPayload, {
+      headers: authHeaders,
+    });
+    return response.data;
+  }
+
+  private mapTipoDocumentoToIdType(tipo: string): number {
+    const map: Record<string, number> = {
+      NIT: 31,
+      CC: 13,
+      CE: 22,
+      DNI: 13,
+      RUC: 41,
+    };
+    return map[tipo] || 31;
+  }
+
+  private mapPersonType(tipo: string): "Company" | "Person" {
+    return tipo === "NIT" || tipo === "RUC" ? "Company" : "Person";
+  }
+
+  private buildSiigoCustomerPayload(data: CreateClientData) {
+    const nombreCompleto = data.razonSocial.trim();
+    const isCompany = this.mapPersonType(data.tipoDocumento) === "Company";
+    const palabras = nombreCompleto.split(" ");
+
+    const sanitize = (s: string) =>
+      s.replace(/[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/g, "").toUpperCase();
+    const nombre = isCompany
+      ? sanitize(palabras[0] || nombreCompleto) || "EMPRESA"
+      : palabras[0] || nombreCompleto;
+    const apellido = isCompany
+      ? sanitize(palabras[1] || "SOCIEDAD") || "SOCIEDAD"
+      : palabras.slice(1).join(" ") || nombre;
+
+    return {
+      type: "Customer",
+      person_type: this.mapPersonType(data.tipoDocumento),
+      id_type: this.mapTipoDocumentoToIdType(data.tipoDocumento).toString(),
+      identification: data.numeroDocumento,
+      name: [nombre, apellido],
+      commercial_name: data.razonSocial,
+      active: data.activo !== undefined ? data.activo : true,
+      vat_responsible: false,
+      fiscal_responsibilities: [{ code: "R-99-PN" }],
+      address: data.direccion
+        ? {
+            address: data.direccion,
+          }
+        : undefined,
+      phones: data.telefono
+        ? [{ indicative: "57", number: data.telefono }]
+        : undefined,
+      contacts: data.email
+        ? [
+            {
+              first_name: nombre,
+              last_name: apellido,
+              email: data.email,
+              phone: data.telefono
+                ? { indicative: "57", number: data.telefono }
+                : undefined,
+            },
+          ]
+        : undefined,
+    };
+  }
+
   async createInvoice(
     data: CreateInvoiceData,
     authHeaders: SigoAuthHeaders,
   ): Promise<any> {
+    // Validar/crear cliente si se proporciona customerData
+    if (data.customerData && data.customerData.numeroDocumento) {
+      const existingCustomer = await this.findCustomerByIdentification(
+        data.customerData.numeroDocumento,
+        authHeaders
+      );
+      
+      if (!existingCustomer) {
+        try {
+          console.log("[InvoiceService] Creando cliente antes de facturar:", data.customerData);
+          await this.createCustomer(data.customerData, authHeaders);
+          console.log("[InvoiceService] Cliente creado exitosamente");
+        } catch (error: any) {
+          if (
+            error?.response?.headers?.["siigoapi-error-code"] === "already_exists"
+          ) {
+            console.log("[InvoiceService] Cliente ya existe, continuando con la factura");
+          } else {
+            console.error("[InvoiceService] Error creando cliente:", error);
+            throw new Error(`Error creando cliente: ${error.message}`);
+          }
+        }
+      } else {
+        console.log("[InvoiceService] Cliente ya existe, usando cliente existente");
+      }
+    }
     const sigoPayload: any = {
       document: {
         id: config.sigo.documentId, // ID del tipo de documento
