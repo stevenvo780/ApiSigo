@@ -64,12 +64,13 @@ export interface GrafOrderFromHub {
     name?: string;
     email?: string;
     phone?: string;
-    identification?: string;
+    documentNumber?: string;
   };
   user?: {
     id: number;
     email: string;
     name?: string;
+    documentNumber?: string;
   };
   items: GrafOrderItem[];
   amount: {
@@ -118,12 +119,20 @@ export interface GrafOrderItem {
 export const convertGrafOrderToSigoInvoice = (
   grafOrder: GrafOrderFromHub,
 ): CreateInvoiceData => {
-  const customerData = grafOrder.customer?.identification ? {
+  console.log("[convertGrafOrderToSigoInvoice] Received Graf Order:", {
+    orderId: grafOrder.id,
+    customer: grafOrder.customer,
+    user: grafOrder.user
+  });
+  
+  // Create customer data if we have documentNumber from customer OR user
+  const documentNumber = grafOrder.customer?.documentNumber || grafOrder.user?.documentNumber;
+  const customerData = documentNumber ? {
     tipoDocumento: "CC" as const,
-    numeroDocumento: grafOrder.customer.identification,
-    razonSocial: grafOrder.customer.name || "Cliente Sin Nombre",
-    email: grafOrder.customer.email,
-    telefono: grafOrder.customer.phone,
+    numeroDocumento: documentNumber,
+    razonSocial: grafOrder.customer?.name || grafOrder.user?.name || "Cliente Sin Nombre",
+    email: grafOrder.customer?.email || grafOrder.user?.email,
+    telefono: grafOrder.customer?.phone,
     direccion: grafOrder.shippingAddress ? 
       `${grafOrder.shippingAddress.address}, ${grafOrder.shippingAddress.city}, ${grafOrder.shippingAddress.department}` : 
       undefined,
@@ -131,13 +140,25 @@ export const convertGrafOrderToSigoInvoice = (
     departamento: grafOrder.shippingAddress?.department,
   } : undefined;
 
+  const finalIdentification = 
+    grafOrder.customer?.documentNumber ||
+    grafOrder.user?.documentNumber ||
+    grafOrder.customer?.email ||
+    grafOrder.user?.email ||
+    "12345678";
+  
+  console.log("[convertGrafOrderToSigoInvoice] Final identification:", {
+    customerDocumentNumber: grafOrder.customer?.documentNumber,
+    userDocumentNumber: grafOrder.user?.documentNumber,
+    userEmail: grafOrder.user?.email,
+    finalIdentification,
+    customerDataWillBeCreated: !!customerData
+  });
+
   return {
     date: new Date().toISOString().split("T")[0],
     customer: {
-      identification:
-        grafOrder.customer?.identification ||
-        grafOrder.user?.email ||
-        "12345678",
+      identification: finalIdentification,
       branch_office: 0,
     },
     customerData,
@@ -260,6 +281,11 @@ export class InvoiceService {
     data: CreateInvoiceData,
     authHeaders: SigoAuthHeaders,
   ): Promise<any> {
+    console.log("🔥 [InvoiceService] createInvoice called with data:", {
+      customerIdentification: data.customer.identification,
+      hasCustomerData: !!data.customerData,
+      customerDataDocument: data.customerData?.numeroDocumento
+    });
     if (data.customerData && data.customerData.numeroDocumento) {
       const existingCustomer = await this.findCustomerByIdentification(
         data.customerData.numeroDocumento,
