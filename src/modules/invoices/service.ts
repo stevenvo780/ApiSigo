@@ -143,9 +143,7 @@ export const convertGrafOrderToSigoInvoice = (
   const finalIdentification = 
     grafOrder.customer?.documentNumber ||
     grafOrder.user?.documentNumber ||
-    grafOrder.customer?.email ||
-    grafOrder.user?.email ||
-    "12345678";
+    "222222222222";
   
   console.log("[convertGrafOrderToSigoInvoice] Final identification:", {
     customerDocumentNumber: grafOrder.customer?.documentNumber,
