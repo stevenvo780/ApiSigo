@@ -28,6 +28,96 @@ export interface CreateInvoiceData {
   observations?: string;
 }
 
+export interface GrafOrderFromHub {
+  id: number;
+  status: string;
+  store: {
+    id: string;
+    name: string;
+    description?: string;
+    owner?: {
+      email: string;
+    };
+  };
+  customer?: {
+    id?: number;
+    name?: string;
+    email?: string;
+    phone?: string;
+    identification?: string;
+  };
+  user?: {
+    id: number;
+    email: string;
+    name?: string;
+  };
+  items: GrafOrderItem[];
+  amount: {
+    total: number;
+    discountTotal: number;
+    taxTotal: number;
+    delivery: number;
+  };
+  shippingAddress?: {
+    address: string;
+    apartment?: string;
+    buildingName?: string;
+    city: string;
+    department: string;
+    country: string;
+    reference?: string;
+  };
+  customAnswers: {
+    question: string;
+    answer: string;
+  }[];
+  deliveryZone?: {
+    id: number;
+    name: string;
+    price: number;
+  };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GrafOrderItem {
+  id: number;
+  product: {
+    id: number;
+    title: string;
+    description?: string;
+    code?: string;
+    basePrice: number;
+    enabled: boolean;
+  };
+  quantity: number;
+  unitPrice: number;
+  finalPrice: number;
+}
+
+export const convertGrafOrderToSigoInvoice = (
+  grafOrder: GrafOrderFromHub,
+): CreateInvoiceData => {
+  return {
+    date: new Date().toISOString().split("T")[0],
+    customer: {
+      identification:
+        grafOrder.customer?.identification ||
+        grafOrder.user?.email ||
+        "12345678",
+      branch_office: 0,
+    },
+    items: grafOrder.items.map((item) => ({
+      code: item.product.code || `GRAF-${item.product.id}`,
+      description: item.product.title,
+      quantity: item.quantity,
+      price: item.finalPrice,
+      discount: 0,
+    })),
+    observations: `Factura generada desde Graf - Pedido #${grafOrder.id} - Tienda: ${grafOrder.store.name}`,
+  };
+};
+
 export class InvoiceService {
   private client: any;
 
