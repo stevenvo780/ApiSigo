@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { body, param, validationResult } from "express-validator";
-import crypto from "crypto";
+
 import { getInvoiceService, CreateInvoiceData } from "./service";
 import { RequestWithSigoCredentials } from "@/middleware/sigoCredentials";
 
@@ -78,17 +78,6 @@ export const validateWebhookInvoice = [
     .withMessage("Monto debe ser mayor a 0"),
 ];
 
-const verifyWebhookSignature = (payload: any, signature?: string): boolean => {
-  if (!signature) return false;
-  const secret = process.env.HUB_WEBHOOK_SECRET || "";
-  const expected = crypto
-    .createHmac("sha256", secret)
-    .update(JSON.stringify(payload))
-    .digest("hex");
-  const provided = signature.replace("sha256=", "");
-  return provided === expected;
-};
-
 export const createInvoiceFromWebhook = async (
   req: RequestWithSigoCredentials & Request,
   res: Response,
@@ -97,35 +86,17 @@ export const createInvoiceFromWebhook = async (
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      res
-        .status(400)
-        .json({
-          error: "Datos inválidos",
-          details: errors.array(),
-        });
-      return;
-    }
-
-    if (!req.sigoAuthHeaders) {
-      res
-        .status(401)
-        .json({
-          error: "No autenticado",
-          message: "Faltan headers de autenticación de SIGO",
-        });
-      return;
-    }
-
-    const signature = (req.headers["x-hub-signature"] as string) || "";
-    if (!verifyWebhookSignature(req.body, signature)) {
-      res.status(401).json({ error: "Firma de webhook inválida" });
+      res.status(400).json({
+        error: "Datos inválidos",
+        details: errors.array(),
+      });
       return;
     }
 
     const invoiceService = getInvoiceService();
     const result = await invoiceService.createInvoiceFromWebhook(
       (req.body as any).data,
-      req.sigoAuthHeaders,
+      req.sigoAuthHeaders!,
     );
 
     res.status(200).json({
@@ -150,22 +121,10 @@ export const createInvoice = async (
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      res
-        .status(400)
-        .json({
-          error: "Datos inválidos",
-          details: errors.array(),
-        });
-      return;
-    }
-
-    if (!req.sigoAuthHeaders) {
-      res
-        .status(401)
-        .json({
-          error: "No autenticado",
-          message: "Faltan headers de autenticación de SIGO",
-        });
+      res.status(400).json({
+        error: "Datos inválidos",
+        details: errors.array(),
+      });
       return;
     }
 
@@ -174,16 +133,14 @@ export const createInvoice = async (
 
     const result = await invoiceService.createInvoice(
       invoiceData,
-      req.sigoAuthHeaders,
+      req.sigoAuthHeaders!,
     );
 
-    res
-      .status(201)
-      .json({
-        success: true,
-        message: "Factura creada exitosamente",
-        data: result,
-      });
+    res.status(201).json({
+      success: true,
+      message: "Factura creada exitosamente",
+      data: result,
+    });
   } catch (error) {
     next(error);
   }
@@ -197,22 +154,10 @@ export const cancelInvoice = async (
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      res
-        .status(400)
-        .json({
-          error: "Parámetros inválidos",
-          details: errors.array(),
-        });
-      return;
-    }
-
-    if (!req.sigoAuthHeaders) {
-      res
-        .status(401)
-        .json({
-          error: "No autenticado",
-          message: "Faltan headers de autenticación de SIGO",
-        });
+      res.status(400).json({
+        error: "Parámetros inválidos",
+        details: errors.array(),
+      });
       return;
     }
 
@@ -223,17 +168,15 @@ export const cancelInvoice = async (
     const data = await invoiceService.createCreditNoteByInvoiceNumber(
       serie,
       numero,
-      req.sigoAuthHeaders,
+      req.sigoAuthHeaders!,
       motivo,
     );
 
-    res
-      .status(201)
-      .json({
-        success: true,
-        message: "Nota de crédito creada para anulación",
-        data,
-      });
+    res.status(201).json({
+      success: true,
+      message: "Nota de crédito creada para anulación",
+      data,
+    });
   } catch (error) {
     res.status(400).json({
       success: false,

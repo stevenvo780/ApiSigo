@@ -1,5 +1,4 @@
 import { Router } from "express";
-import { extractSigoCredentialsWithAuth } from "@/middleware/sigoCredentials";
 import {
   createInvoice,
   cancelInvoice,
@@ -17,27 +16,12 @@ router.get("/__health", (_req, res) => {
 });
 
 // POST /api/invoices/webhook - Crear factura desde webhook
-router.post(
-  "/webhook",
-  extractSigoCredentialsWithAuth,
-  validateWebhookInvoice,
-  createInvoiceFromWebhook,
-);
+router.post("/webhook", validateWebhookInvoice, createInvoiceFromWebhook);
 
 // POST /api/invoices - Crear factura (endpoint principal)
-router.post(
-  "/",
-  extractSigoCredentialsWithAuth,
-  validateInvoice,
-  createInvoice,
-);
+router.post("/", validateInvoice, createInvoice);
 
 // POST /api/invoices/cancel/:serie/:numero - Cancelar factura mediante nota de crédito
-router.post(
-  "/cancel/:serie/:numero",
-  extractSigoCredentialsWithAuth,
-  validateInvoiceParams,
-  cancelInvoice,
-);
+router.post("/cancel/:serie/:numero", validateInvoiceParams, cancelInvoice);
 
 export default router;

@@ -12,6 +12,8 @@ import {
   validateJson,
 } from "@/middleware/errorHandler";
 
+import { extractSigoCredentialsWithAuth } from "@/middleware/sigoCredentials";
+
 const app: Express = express();
 const PORT = process.env.PORT || 3000;
 
@@ -44,6 +46,8 @@ if (process.env.NODE_ENV !== "test") {
   app.use(requestLogger);
 }
 
+app.use("/api", extractSigoCredentialsWithAuth);
+
 app.get("/api", (req, res) => {
   res.json({
     success: true,
@@ -55,7 +59,6 @@ app.get("/api", (req, res) => {
     endpoints: {
       invoices: "/api/invoices",
       clients: "/api/clients",
-      webhook: "/api/invoices/webhook",
     },
     documentation: "/api/docs",
     timestamp: new Date().toISOString(),
@@ -126,31 +129,29 @@ process.on("unhandledRejection", (reason: any, promise: Promise<any>) => {
   process.exit(1);
 });
 
-if (process.env.NODE_ENV !== "test") {
-  const server = app.listen(PORT, () => {
-    console.log(`
+const server = app.listen(PORT, () => {
+  console.log(`
 🚀 SIGO API Server iniciado
 📍 Puerto: ${PORT}
 🌍 Entorno: ${process.env.NODE_ENV || "development"}
 🔗 URL: http://localhost:${PORT}
 📚 Docs: http://localhost:${PORT}/api/docs
     `);
-  });
+});
 
-  process.on("SIGTERM", () => {
-    console.log("SIGTERM signal received: closing HTTP server");
-    server.close(() => {
-      console.log("HTTP server closed");
-    });
+process.on("SIGTERM", () => {
+  console.log("SIGTERM signal received: closing HTTP server");
+  server.close(() => {
+    console.log("HTTP server closed");
   });
+});
 
-  process.on("SIGINT", () => {
-    console.log("SIGINT signal received: closing HTTP server");
-    server.close(() => {
-      console.log("HTTP server closed");
-    });
+process.on("SIGINT", () => {
+  console.log("SIGINT signal received: closing HTTP server");
+  server.close(() => {
+    console.log("HTTP server closed");
   });
-}
+});
 
 export default app;
 // CommonJS default export for Jest/supertest

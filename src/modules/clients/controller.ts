@@ -41,7 +41,8 @@ export const validateClient = [
     .withMessage("Código postal no debe exceder 10 caracteres"),
 ];
 
-export interface ClientRequestWithCredentials extends RequestWithSigoCredentials {
+export interface ClientRequestWithCredentials
+  extends RequestWithSigoCredentials {
   body: {
     customerData: CreateClientData;
     eventType?: string;
@@ -59,15 +60,6 @@ export const createClient = async (
       res.status(400).json({
         error: "Datos inválidos",
         details: errors.array(),
-      });
-      return;
-    }
-
-    // Verificar que tenemos headers de auth listos
-    if (!req.sigoAuthHeaders) {
-      res.status(401).json({
-        error: "No autenticado",
-        message: "Faltan headers de autenticación de SIGO",
       });
       return;
     }
@@ -93,10 +85,9 @@ export const createClient = async (
 
     const sigoService = getClientService();
 
-    // Pasar solamente headers ya autenticados
     const result = await sigoService.createClient(
       customerData,
-      req.sigoAuthHeaders,
+      req.sigoAuthHeaders!,
     );
 
     res.status(201).json({
