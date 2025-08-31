@@ -1,5 +1,4 @@
 import axios from "axios";
-import config from "@/shared/config";
 import type { SigoAuthHeaders } from "@/services/sigoAuthService";
 
 export interface CreateClientData {
@@ -121,10 +120,14 @@ export const convertGrafOrderToSigoInvoice = (
 ): CreateInvoiceData => {
   
 
-  const documentNumber = grafOrder.customer?.documentNumber || grafOrder.user?.documentNumber;
-  const customerData = documentNumber ? {
+  const customerIdentification = 
+    grafOrder.customer?.documentNumber ||
+    grafOrder.user?.documentNumber ||
+    "222222222222";
+
+  const customerData = customerIdentification !== "222222222222" ? {
     tipoDocumento: "CC" as const,
-    numeroDocumento: documentNumber,
+    numeroDocumento: customerIdentification,
     razonSocial: grafOrder.customer?.name || grafOrder.user?.name || "Cliente Sin Nombre",
     email: grafOrder.customer?.email || grafOrder.user?.email,
     telefono: grafOrder.customer?.phone,
@@ -134,17 +137,12 @@ export const convertGrafOrderToSigoInvoice = (
     ciudad: grafOrder.shippingAddress?.city,
     departamento: grafOrder.shippingAddress?.department,
   } : undefined;
-
-  const finalIdentification = 
-    grafOrder.customer?.documentNumber ||
-    grafOrder.user?.documentNumber ||
-    "222222222222";
   
 
   return {
     date: new Date().toISOString().split("T")[0],
     customer: {
-      identification: finalIdentification,
+      identification: customerIdentification,
       branch_office: 0,
     },
     customerData,
@@ -164,8 +162,8 @@ export class InvoiceService {
 
   constructor() {
     this.client = axios.create({
-      baseURL: config.sigo.baseUrl,
-      timeout: config.sigo.timeout,
+      baseURL: process.env.SIGO_API_URL || "https://api.siigo.com",
+      timeout: parseInt(process.env.SIGO_TIMEOUT || "30000", 10),
       headers: {
         "Content-Type": "application/json",
         Accept: "application/json",
@@ -290,10 +288,10 @@ export class InvoiceService {
     }
     const sigoPayload: any = {
       document: {
-        id: config.sigo.documentId,
+        id: parseInt(process.env.SIIGO_INVOICE_TYPE_ID || "28418", 10),
       },
       date: data.date || new Date().toISOString().split("T")[0],
-      seller: config.sigo.sellerId,
+      seller: process.env.SIIGO_SELLER_ID ? parseInt(process.env.SIIGO_SELLER_ID, 10) : undefined,
       customer: {
         identification: data.customer.identification,
         branch_office: data.customer.branch_office || 0,
@@ -309,7 +307,7 @@ export class InvoiceService {
       })),
       payments: data.payments || [
         {
-          id: config.sigo.paymentMethodId || 1,
+          id: process.env.SIIGO_PAYMENT_METHOD_ID ? parseInt(process.env.SIIGO_PAYMENT_METHOD_ID, 10) : 1,
           value: data.items.reduce(
             (total, item) =>
               total + (item.quantity * item.price - (item.discount || 0)),
@@ -374,12 +372,12 @@ export class InvoiceService {
             quantity: it.quantity || it.cantidad || 1,
             price: it.price || it.precio_unitario || it.unit_price || 0,
             discount: 0,
-            taxes: config.sigo.taxId ? [{ id: config.sigo.taxId }] : undefined,
+            taxes: process.env.SIIGO_TAX_ID ? [{ id: parseInt(process.env.SIIGO_TAX_ID, 10) }] : undefined,
           }))
         : undefined;
 
     const payload: any = {
-      document: { id: config.sigo.creditNoteDocumentId },
+      document: { id: parseInt(process.env.SIIGO_CREDIT_NOTE_DOCUMENT_ID || "28420", 10) },
       date: new Date().toISOString().split("T")[0],
       customer: {
         identification:

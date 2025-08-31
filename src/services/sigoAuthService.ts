@@ -1,5 +1,4 @@
 import axios from "axios";
-import config from "@/shared/config";
 import AuthenticationCache from "@/shared/authCache";
 import { defaultLogger as logger } from "@/utils/logger";
 import { SigoCredentials } from "@/middleware/sigoCredentials";
@@ -71,7 +70,7 @@ export class SigoAuthService {
     try {
       logger.info("Iniciando autenticación con SIGO");
 
-      const authUrl = `${config.sigo.baseUrl}/auth/user-login`;
+      const authUrl = `${process.env.SIGO_API_URL || "https://api.siigo.com"}/auth/user-login`;
       const accessKey = this.normalizeAccessKey(credentials.apiKey);
       const authData = {
         username: credentials.email,

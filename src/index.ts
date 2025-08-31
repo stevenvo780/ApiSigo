@@ -1,7 +1,6 @@
+import "dotenv/config";
 import express, { Express } from "express";
-import cors from "cors";
-
-
+import cors from "cors"
 import { routes as invoiceRoutes } from "@/modules/invoices";
 
 import {
@@ -14,12 +13,12 @@ import {
 import { extractSigoCredentialsWithAuth } from "@/middleware/sigoCredentials";
 
 const app: Express = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8080;
 
 app.use(
   cors({
     origin: process.env.ALLOWED_ORIGINS?.split(",") || [
-      "http://localhost:3000",
+      "http://localhost:8080",
     ],
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],

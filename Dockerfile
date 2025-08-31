@@ -22,7 +22,7 @@ RUN chown -R apiservice:nodejs /app
 USER apiservice
 
 # Exponer puerto
-EXPOSE 3004
+EXPOSE 8080
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
