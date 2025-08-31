@@ -7,11 +7,17 @@ WORKDIR /app
 # Copiar package.json y package-lock.json (si existe)
 COPY package*.json ./
 
-# Instalar dependencias
-RUN npm ci --only=production
-
 # Copiar código fuente
 COPY . .
+
+# Instalar todas las dependencias (incluyendo devDependencies para compilar)
+RUN npm ci
+
+# Compilar TypeScript
+RUN npm run build
+
+# Limpiar devDependencies después de compilar
+RUN npm ci --only=production && npm cache clean --force
 
 # Crear usuario no-root para seguridad
 RUN addgroup -g 1001 -S nodejs && \
@@ -26,7 +32,7 @@ EXPOSE 8080
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:3004/health || exit 1
+  CMD wget --no-verbose --tries=1 --spider http://localhost:8080/__health || exit 1
 
 # Comando por defecto
 CMD ["npm", "start"]
