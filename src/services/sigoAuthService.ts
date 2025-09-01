@@ -1,6 +1,5 @@
 import axios from "axios";
 import AuthenticationCache from "@/shared/authCache";
-import { defaultLogger as logger } from "@/utils/logger";
 import { SigoCredentials } from "@/middleware/sigoCredentials";
 
 interface SigoAuthResponse {
@@ -56,7 +55,7 @@ export class SigoAuthService {
       const payload = JSON.parse(json);
       return payload.api_subscription_key || null;
     } catch (error) {
-      logger.error("Error extrayendo Partner-Id del token:", error);
+      console.error("Error extrayendo Partner-Id del token:", error);
       return null;
     }
   }
@@ -68,7 +67,7 @@ export class SigoAuthService {
     credentials: SigoCredentials,
   ): Promise<string> {
     try {
-      logger.info("Iniciando autenticación con SIGO");
+      console.info("Iniciando autenticación con SIGO");
 
       const authUrl = `${process.env.SIGO_API_URL || "https://api.siigo.com"}/auth/user-login`;
       const accessKey = this.normalizeAccessKey(credentials.apiKey);
@@ -77,7 +76,7 @@ export class SigoAuthService {
         access_key: accessKey,
       };
 
-      logger.info(`Obteniendo token de autenticación desde ${authUrl}`);
+      console.info(`Obteniendo token de autenticación desde ${authUrl}`);
 
       const response = await axios.post<SigoAuthResponse>(authUrl, authData, {
         timeout: 10000,
@@ -98,10 +97,10 @@ export class SigoAuthService {
         token,
       );
 
-      logger.info("Token obtenido y guardado en caché exitosamente");
+      console.info("Token obtenido y guardado en caché exitosamente");
       return token;
     } catch (error) {
-      logger.error("Error en autenticación SIGO:", error);
+      console.error("Error en autenticación SIGO:", error);
       throw new Error(`Error de autenticación: ${error}`);
     }
   }
