@@ -18,21 +18,9 @@ export class AllExceptionsFilter implements ExceptionFilter {
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse();
-    const request = ctx.getRequest();
 
     const err = exception as ApiErrorLike;
 
-    // eslint-disable-next-line no-console
-    console.error('Error capturado:', {
-      message: err?.message,
-      stack: err?.stack,
-      url: request?.url,
-      method: request?.method,
-      body: request?.body,
-      code: (err as any)?.code,
-      details: (err as any)?.details,
-      timestamp: new Date().toISOString(),
-    });
 
     if ((err as any)?.code === 'SIGO_API_ERROR') {
       const status = (err as any)?.statusCode || HttpStatus.BAD_GATEWAY;

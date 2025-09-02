@@ -50,7 +50,6 @@ export class InvoiceService {
 
   private static paymentTypesCache = new Map<string, { items: Array<{ id: number; name?: string; active?: boolean }>; exp: number }>();
   private static sellersCache = new Map<string, { items: Array<any>; exp: number }>();
-  // Cache de impuestos por Partner-Id
   private static taxesCache = new Map<string, { items: Array<any>; exp: number }>();
   private static readonly TTL_MS = 10 * 60 * 1000;
 
@@ -76,14 +75,10 @@ export class InvoiceService {
 
     this.client.interceptors.request.use((config) => {
       (config as any).meta = { start: Date.now() };
-      // eslint-disable-next-line no-console
-      console.info(`[Siigo] → ${String(config.method).toUpperCase()} ${config.url}`);
       try {
         if (String(config.url).includes('/v1/invoices') && String(config.method).toLowerCase() === 'post') {
           const body = (config as any).data;
           const preview = typeof body === 'string' ? body : JSON.stringify(body);
-          // eslint-disable-next-line no-console
-          console.info('[Siigo][DEBUG] Enviando body factura:', preview);
         }
       } catch {}
       return config;
@@ -92,8 +87,6 @@ export class InvoiceService {
       (res) => {
         const start = (res.config as any).meta?.start || Date.now();
         const ms = Date.now() - start;
-        // eslint-disable-next-line no-console
-        console.info(`[Siigo] ← ${res.status} ${res.config.url} (${ms}ms)`);
         return res;
       },
       (err) => {
@@ -103,8 +96,6 @@ export class InvoiceService {
         const status = err?.response?.status;
         const url = cfg?.url;
         const code = err?.code;
-        // eslint-disable-next-line no-console
-        console.warn(`[Siigo] ✖ ${status || code || 'ERR'} ${url} (${ms}ms)`);
         return Promise.reject(err);
       },
     );
@@ -130,8 +121,6 @@ export class InvoiceService {
         ? (results[0] as Record<string, unknown>)
         : null;
     } catch (error) {
-      // eslint-disable-next-line no-console
-      console.error('[InvoiceService] Error buscando cliente:', error);
       return null;
     }
   }
@@ -229,8 +218,6 @@ export class InvoiceService {
       if (firstActive?.id) return Number(firstActive.id);
       return candidate;
     } catch (e) {
-      // eslint-disable-next-line no-console
-      console.warn('[InvoiceService] No se pudo validar payment method, se usará el proporcionado o se omitirá:', e);
       return candidate;
     }
   }
@@ -269,7 +256,6 @@ export class InvoiceService {
       if (idFromApi) return idFromApi;
       return envPrimary ?? (process.env.SIIGO_FALLBACK_SELLER_ID ? parseInt(process.env.SIIGO_FALLBACK_SELLER_ID, 10) : undefined);
     } catch (e) {
-      console.warn('[InvoiceService] No se pudo obtener usuarios/sellers, se usarán env vars:', e);
       return envPrimary ?? (process.env.SIIGO_FALLBACK_SELLER_ID ? parseInt(process.env.SIIGO_FALLBACK_SELLER_ID, 10) : undefined);
     }
   }
@@ -353,8 +339,6 @@ export class InvoiceService {
           const err = error as { response?: { headers?: Record<string, string> } };
           const code = err?.response?.headers?.['siigoapi-error-code'];
           if (code !== 'already_exists') {
-            // eslint-disable-next-line no-console
-            console.error('[InvoiceService] Error creando cliente:', error);
             const message = error instanceof Error ? error.message : String(error);
             throw new Error(`Error creando cliente: ${message}`);
           }
@@ -378,16 +362,12 @@ export class InvoiceService {
             const err = error as { response?: { headers?: Record<string, string> } };
             const code = err?.response?.headers?.['siigoapi-error-code'];
             if (code !== 'already_exists') {
-              // eslint-disable-next-line no-console
-              console.error('[InvoiceService] Error creando cliente mínimo:', error);
               const message = error instanceof Error ? error.message : String(error);
               throw new Error(`Error creando cliente: ${message}`);
             }
           }
         }
       } catch (e) {
-        // eslint-disable-next-line no-console
-        console.warn('[InvoiceService] No se pudo verificar/crear cliente mínimo, se continúa:', e);
       }
     }
 
@@ -398,8 +378,6 @@ export class InvoiceService {
       const envFallback = process.env.SIIGO_SELLER_ID || process.env.SIIGO_FALLBACK_SELLER_ID;
       if (envFallback) resolvedSellerId = parseInt(envFallback, 10);
     }
-    // Log diagnóstico
-    console.info('[InvoiceService] Seller resuelto:', { resolvedSellerId, sellerEmailHint, override: sellerIdOverride });
     if (!resolvedSellerId || Number.isNaN(Number(resolvedSellerId))) {
       const err: any = new Error('No se pudo resolver un seller válido');
       err.code = 'SELLER_UNRESOLVED';
@@ -412,15 +390,12 @@ export class InvoiceService {
     const defaultTaxId = process.env.SIIGO_TAX_ID ? parseInt(process.env.SIIGO_TAX_ID, 10) : undefined;
     const defaultTaxIsValid = await this.isValidTaxId(authHeaders, defaultTaxId);
     if (defaultTaxId && !defaultTaxIsValid) {
-      // eslint-disable-next-line no-console
-      console.warn('[InvoiceService] SIIGO_TAX_ID inválido o no encontrado, se omiten impuestos por defecto:', { defaultTaxId });
     }
     const preparedItems = await Promise.all((data.items || []).map(async (item) => {
       const base = item.quantity * item.price - (item.discount || 0);
       const taxes = (item.taxes && item.taxes.length > 0)
         ? item.taxes
         : (defaultTaxIsValid && defaultTaxId ? [{ id: defaultTaxId }] : undefined);
-      // calcular total por ítem (base + impuestos) para logging interno
       let itemTaxTotal = 0;
       if (taxes && taxes.length) {
         for (const tx of taxes) {
@@ -449,7 +424,6 @@ export class InvoiceService {
         id: parseInt(process.env.SIIGO_INVOICE_TYPE_ID || '28418', 10),
       },
       date: data.date || new Date().toISOString().split('T')[0],
-      // Punto único de verdad; variantes se probarán en el POST
       seller: Number(resolvedSellerId),
       customer: {
         identification: data.customer.identification,
@@ -466,18 +440,6 @@ export class InvoiceService {
       ],
     };
 
-    // eslint-disable-next-line no-console
-    console.info('[InvoiceService] Payload a SIGO (sanitizado):', {
-      document: sigoPayload.document,
-      date: sigoPayload.date,
-      seller: (sigoPayload as any).seller,
-      customer: sigoPayload.customer,
-      itemsCount: Array.isArray(sigoPayload.items) ? (sigoPayload.items as any[]).length : 0,
-      payments: sigoPayload.payments,
-      subtotal,
-      taxesTotal,
-      total,
-    });
 
     try {
       const invoiceTimeout = parseInt(process.env.SIIGO_INVOICE_TIMEOUT_MS || process.env.SIGO_TIMEOUT || '60000', 10);
@@ -487,29 +449,14 @@ export class InvoiceService {
       }
       headers['Content-Type'] = 'application/json';
       headers['Accept'] = 'application/json';
-      // compat: algunos ejemplos usan Partner-ID (mayúsculas)
       if (headers['Partner-Id'] && !headers['Partner-ID']) headers['Partner-ID'] = headers['Partner-Id'];
       const headersDebug = { ...headers } as any;
       if (headersDebug.Authorization) headersDebug.Authorization = 'Bearer ***';
-      // eslint-disable-next-line no-console
-      console.info('[InvoiceService] Headers a SIGO (completos):', headersDebug);
-      // eslint-disable-next-line no-console
-      console.info('[InvoiceService] Headers a SIGO:', { partner: headers['Partner-Id'] || headers['Partner-ID'], idem: headers['Idempotency-Key'] ? 'yes' : 'no' });
 
-      // Probar variantes de 'seller' sólo si Siigo responde "seller required"
       const variants = this.buildSellerVariants(sigoPayload, Number(resolvedSellerId));
       let lastErr: any;
       for (let i = 0; i < variants.length; i++) {
         const payloadToSend: any = JSON.parse(JSON.stringify(variants[i]));
-        console.info('[InvoiceService] Intento variante de seller:', {
-          attempt: i + 1,
-          hasRootSeller: Object.prototype.hasOwnProperty.call(payloadToSend, 'seller'),
-          rootSellerType: typeof payloadToSend.seller,
-          hasRootSellerId: Object.prototype.hasOwnProperty.call(payloadToSend, 'seller_id'),
-          hasDocSeller: !!payloadToSend.document && Object.prototype.hasOwnProperty.call(payloadToSend.document, 'seller'),
-          hasDocSellerId: !!payloadToSend.document && Object.prototype.hasOwnProperty.call(payloadToSend.document, 'seller_id'),
-          hasSalesmanIdentification: Object.prototype.hasOwnProperty.call(payloadToSend, 'SalesmanIdentification'),
-        });
         try {
           const response = await this.client.post('/v1/invoices', payloadToSend, { headers, timeout: invoiceTimeout });
           const out = (response as { data: Record<string, unknown> }).data;
@@ -520,10 +467,8 @@ export class InvoiceService {
           const msg = err?.response?.data?.Errors?.[0]?.Message || err?.message || '';
           const params = err?.response?.data?.Errors?.[0]?.Params || [];
           const isSellerReq = siigoCode === 'parameter_required' && (msg?.toLowerCase().includes('seller') || params?.includes('seller'));
-          // Si el error es por impuesto inválido, reintentar una sola vez sin impuestos
           const isInvalidTax = siigoCode === 'invalid_reference' && (msg?.toLowerCase().includes('tax') || params?.some((p: string) => p.includes('taxes')));
           if (isInvalidTax) {
-            console.warn('[InvoiceService] Impuesto inválido detectado, reintentando sin taxes en items.');
             const withoutTaxes = JSON.parse(JSON.stringify(payloadToSend));
             if (Array.isArray(withoutTaxes.items)) {
               withoutTaxes.items = withoutTaxes.items.map((it: any) => { const { taxes, ...rest } = it || {}; return rest; });
@@ -539,7 +484,6 @@ export class InvoiceService {
             }
           }
           if (!isSellerReq || i === variants.length - 1) { lastErr = err; break; }
-          console.warn('[InvoiceService] Variante de seller rechazada, probando siguiente.', { siigoCode, msg, params });
           lastErr = err;
         }
       }

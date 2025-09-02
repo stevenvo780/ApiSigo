@@ -38,14 +38,13 @@ export class InvoicesController {
   @HttpCode(HttpStatus.CREATED)
   async create(@Req() req: RequestWithSigo, @Body() dto: CreateInvoiceDto) {
     const idempotencyKey = (req.headers['idempotency-key'] as string) || undefined;
-    // Email del usuario autenticado (inyectado por el middleware) o header x-email como respaldo
     const authEmail = (req as any)?.sigoCredentials?.email || (req.headers['x-email'] as string) || undefined;
     const result = await this.invoiceService.createInvoice(
       dto as any,
       req.sigoAuthHeaders!,
       idempotencyKey,
-      /* sellerIdOverride */ undefined,
-      /* sellerEmailHint  */ authEmail,
+      undefined,
+      authEmail,
     );
     return { success: true, message: 'Factura creada exitosamente', data: result };
   }

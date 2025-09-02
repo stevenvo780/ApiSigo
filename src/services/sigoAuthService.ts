@@ -46,7 +46,6 @@ export class SigoAuthService {
       const payload = JSON.parse(json);
       return payload.api_subscription_key || null;
     } catch (error) {
-      console.error("Error extrayendo Partner-Id del token:", error);
       return null;
     }
   }
@@ -64,7 +63,6 @@ export class SigoAuthService {
     credentials: SigoCredentials,
   ): Promise<string> {
     try {
-      console.info("Iniciando autenticación con SIGO");
 
       const authUrl = `${process.env.SIGO_API_URL || "https://api.siigo.com"}/auth/user-login`;
       const accessKey = this.normalizeAccessKey(credentials.apiKey);
@@ -73,7 +71,6 @@ export class SigoAuthService {
         access_key: accessKey,
       };
 
-      console.info(`Obteniendo token de autenticación desde ${authUrl}`);
 
       const response = await axios.post<SigoAuthResponse>(authUrl, authData, {
         timeout: 10000,
@@ -94,10 +91,8 @@ export class SigoAuthService {
         token,
       );
 
-      console.info("Token obtenido y guardado en caché exitosamente");
       return token;
     } catch (error) {
-      console.error("Error en autenticación SIGO:", error);
       throw new Error(`Error de autenticación: ${error}`);
     }
   }
@@ -114,7 +109,6 @@ export class SigoAuthService {
       token = await this.authenticate(credentials);
     }
 
-    // Prioridad: ENV > JWT > APIKEY
     let partnerId = process.env.SIIGO_PARTNER_ID || null;
     if (!partnerId) {
       partnerId = this.extractPartnerIdFromToken(token);

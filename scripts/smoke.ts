@@ -43,15 +43,10 @@ async function main() {
   results.push(['POST /api/invoices', await post('/api/invoices', createBody, { 'Idempotency-Key': 'smoke-001' })]);
 
   for (const [name, r] of results) {
-    console.log(`\n=== ${name} ===`);
     if (r.ok) {
-      console.log('OK', r.status);
-      console.log(JSON.stringify(r.data, null, 2).slice(0, 500));
     } else {
-      console.log('FAIL', r.status, r.error);
-      console.log(JSON.stringify(r.data, null, 2).slice(0, 500));
     }
   }
 }
 
-main().catch((e) => { console.error('Smoke error:', e); process.exit(1); });
+main().catch(() => { process.exit(1); });

@@ -39,13 +39,9 @@ async function bootstrap() {
 
   const PORT = Number(process.env.PORT) || 8080;
   await app.listen(PORT);
-  // eslint-disable-next-line no-console
-  console.info(`\n🚀 SIGO API (Nest) iniciado\n📍 Puerto: ${PORT}\n🌍 Entorno: ${process.env.NODE_ENV || 'development'}\n🔗 URL: http://localhost:${PORT}\n📚 Docs: http://localhost:${PORT}/api/docs\n`);
 }
 
-bootstrap().catch((err) => {
-  // eslint-disable-next-line no-console
-  console.error('Error al iniciar Nest:', err);
+bootstrap().catch(() => {
   process.exit(1);
 });
 
