@@ -26,4 +26,6 @@ export class IdempotencyStore<T = Record<string, unknown>> {
   }
 }
 
-export const InvoiceIdempotency = new IdempotencyStore<Record<string, unknown>>();
+export const InvoiceIdempotency = new IdempotencyStore<
+  Record<string, unknown>
+>();

@@ -51,11 +51,19 @@ export class SigoAuthService {
   }
 
   private static extractPartnerIdFromApiKey(apiKey: string): string | null {
-    const t = (apiKey || '').trim();
+    const t = (apiKey || "").trim();
     if (!t) return null;
-    const trySplit = (s: string) => { const idx = s.indexOf(':'); return idx > 0 ? s.slice(0, idx) : null; };
-    const plain = trySplit(t); if (plain) return plain;
-    try { const decoded = Buffer.from(t, 'base64').toString('utf8'); const fromDecoded = trySplit(decoded); if (fromDecoded) return fromDecoded; } catch {}
+    const trySplit = (s: string) => {
+      const idx = s.indexOf(":");
+      return idx > 0 ? s.slice(0, idx) : null;
+    };
+    const plain = trySplit(t);
+    if (plain) return plain;
+    try {
+      const decoded = Buffer.from(t, "base64").toString("utf8");
+      const fromDecoded = trySplit(decoded);
+      if (fromDecoded) return fromDecoded;
+    } catch {}
     return null;
   }
 
@@ -63,14 +71,12 @@ export class SigoAuthService {
     credentials: SigoCredentials,
   ): Promise<string> {
     try {
-
       const authUrl = `${process.env.SIGO_API_URL || "https://api.siigo.com"}/auth/user-login`;
       const accessKey = this.normalizeAccessKey(credentials.apiKey);
       const authData = {
         username: credentials.email,
         access_key: accessKey,
       };
-
 
       const response = await axios.post<SigoAuthResponse>(authUrl, authData, {
         timeout: 10000,
@@ -117,7 +123,7 @@ export class SigoAuthService {
       partnerId = this.extractPartnerIdFromApiKey(credentials.apiKey);
     }
     if (!partnerId) {
-      throw new Error('No se pudo resolver Partner-Id');
+      throw new Error("No se pudo resolver Partner-Id");
     }
 
     return {

@@ -239,7 +239,6 @@ export class InvoiceService {
     return items;
   }
 
-  // Acepta pista de email para priorizar el usuario vendedor correcto
   private async resolveSellerId(authHeaders: SigoAuthHeaders, emailHint?: string): Promise<number | undefined> {
     const envPrimary = process.env.SIIGO_SELLER_ID ? parseInt(process.env.SIIGO_SELLER_ID, 10) : undefined;
     try {
@@ -285,7 +284,6 @@ export class InvoiceService {
     }
   }
 
-  // Verifica existencia de un impuesto en catálogo
   private async isValidTaxId(authHeaders: SigoAuthHeaders, taxId?: number): Promise<boolean> {
     if (!taxId || Number.isNaN(Number(taxId))) return false;
     try {
@@ -296,7 +294,6 @@ export class InvoiceService {
     }
   }
 
-  // Genera variantes equivalentes de 'seller' para distintos validadores de Siigo
   private buildSellerVariants(base: Record<string, any>, sellerId: number) {
     const clean = (obj: any) => {
       const c = JSON.parse(JSON.stringify(obj));
@@ -305,12 +302,12 @@ export class InvoiceService {
       return c;
     };
     const v: Record<string, any>[] = [];
-    { const p = clean(base); p.seller = Number(sellerId); v.push(p); }           // raíz numérico
-    { const p = clean(base); p.seller = { id: Number(sellerId) }; v.push(p); }   // raíz objeto
-    { const p = clean(base); p.seller_id = Number(sellerId); v.push(p); }        // raíz seller_id
+    { const p = clean(base); p.seller = Number(sellerId); v.push(p); }
+    { const p = clean(base); p.seller = { id: Number(sellerId) }; v.push(p); }
+    { const p = clean(base); p.seller_id = Number(sellerId); v.push(p); }
     { const p = clean(base); p.document = { ...(base.document||{}), seller: Number(sellerId) }; v.push(p); }
     { const p = clean(base); p.document = { ...(base.document||{}), seller_id: Number(sellerId) }; v.push(p); }
-    { const p = clean(base); p.SalesmanIdentification = String(sellerId); v.push(p); } // legado
+    { const p = clean(base); p.SalesmanIdentification = String(sellerId); v.push(p); }
     return v;
   }
 
@@ -371,7 +368,6 @@ export class InvoiceService {
       }
     }
 
-    // Resolver método de pago y vendedor (sin pasar seller por parámetro)
     const paymentMethodId = await this.resolvePaymentMethodId(authHeaders, 'FV');
     let resolvedSellerId = sellerIdOverride ?? (await this.resolveSellerId(authHeaders, sellerEmailHint));
     if (!resolvedSellerId) {
@@ -386,7 +382,6 @@ export class InvoiceService {
       throw err;
     }
 
-    // Asegurar impuestos por ítem y calcular total con impuestos
     const defaultTaxId = process.env.SIIGO_TAX_ID ? parseInt(process.env.SIIGO_TAX_ID, 10) : undefined;
     const defaultTaxIsValid = await this.isValidTaxId(authHeaders, defaultTaxId);
     if (defaultTaxId && !defaultTaxIsValid) {
