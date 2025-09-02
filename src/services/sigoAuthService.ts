@@ -1,6 +1,6 @@
 import axios from "axios";
 import AuthenticationCache from "@/shared/authCache";
-import { SigoCredentials } from "@/middleware/sigoCredentials";
+import type { SigoCredentials } from "@/middleware-nest/sigo-credentials.middleware";
 
 interface SigoAuthResponse {
   access_token: string;
@@ -14,12 +14,6 @@ export interface SigoAuthHeaders {
 }
 
 export class SigoAuthService {
-  /**
-   * Normaliza la access key de Siigo:
-   * - Si viene como "uuid:secret" => la convierte a base64
-   * - Si parece base64 y al decodificar contiene ":" => la deja tal cual
-   * - En otros casos, devuelve el valor original (fallback)
-   */
   private static normalizeAccessKey(input: string): string {
     const t = (input || "").trim();
     if (!t) return t;
@@ -42,9 +36,6 @@ export class SigoAuthService {
     return t;
   }
 
-  /**
-   * Extrae el Partner-Id del JWT token
-   */
   public static extractPartnerIdFromToken(token: string): string | null {
     try {
       const part = token.split(".")[1];
@@ -60,9 +51,15 @@ export class SigoAuthService {
     }
   }
 
-  /**
-   * Obtiene token de autenticación desde SIGO
-   */
+  private static extractPartnerIdFromApiKey(apiKey: string): string | null {
+    const t = (apiKey || '').trim();
+    if (!t) return null;
+    const trySplit = (s: string) => { const idx = s.indexOf(':'); return idx > 0 ? s.slice(0, idx) : null; };
+    const plain = trySplit(t); if (plain) return plain;
+    try { const decoded = Buffer.from(t, 'base64').toString('utf8'); const fromDecoded = trySplit(decoded); if (fromDecoded) return fromDecoded; } catch {}
+    return null;
+  }
+
   public static async authenticate(
     credentials: SigoCredentials,
   ): Promise<string> {
@@ -105,9 +102,6 @@ export class SigoAuthService {
     }
   }
 
-  /**
-   * Obtiene headers de autenticación (Bearer + Partner-Id) para SIGO
-   */
   public static async getAuthHeaders(
     credentials: SigoCredentials,
   ): Promise<SigoAuthHeaders> {
@@ -120,9 +114,16 @@ export class SigoAuthService {
       token = await this.authenticate(credentials);
     }
 
-    const partnerId = this.extractPartnerIdFromToken(token);
+    // Prioridad: ENV > JWT > APIKEY
+    let partnerId = process.env.SIIGO_PARTNER_ID || null;
     if (!partnerId) {
-      throw new Error("No se pudo extraer Partner-Id del token");
+      partnerId = this.extractPartnerIdFromToken(token);
+    }
+    if (!partnerId) {
+      partnerId = this.extractPartnerIdFromApiKey(credentials.apiKey);
+    }
+    if (!partnerId) {
+      throw new Error('No se pudo resolver Partner-Id');
     }
 
     return {

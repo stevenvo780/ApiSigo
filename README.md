@@ -29,6 +29,7 @@ Puerto por defecto: `3004` (configurable vía `PORT`).
 Variables principales (ver `.env.example`):
 - `SIGO_API_URL`, `SIGO_API_KEY`, `SIGO_USERNAME`, `SIGO_PASSWORD`
 - `ALLOWED_ORIGINS` para CORS (opcional)
+- Requiere SKU real en cada ítem; no se generan códigos sintéticos
 
 ## Endpoints
 
@@ -47,6 +48,12 @@ Base: `http://localhost:3004`
 ```json
 { "success": true, "message": "OK", "data": { } }
 ```
+
+Idempotencia
+```http
+Idempotency-Key: <uuid|hash>
+```
+Si se envía el header `Idempotency-Key`, la creación de factura será idempotente por 10 minutos.
 
 Error
 ```json

@@ -86,3 +86,15 @@ sigo-config.json
 *.db
 *.sqlite
 *.sqlite3
+
+artifacts/
+.agent/
+docs/_agent/**
+transactions/**
+playwright-report/
+test-results/
+trace.zip
+storageState.json
+*.har
+*.log
+*.tmp

@@ -32,7 +32,9 @@
       "@/modules/*": ["src/modules/*"],
       "@/shared/*": ["src/shared/*"]
     },
-    "typeRoots": ["./node_modules/@types", "./src/types"]
+    "typeRoots": ["./node_modules/@types", "./src/types"],
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true
   },
   "include": [
     "src/**/*"
