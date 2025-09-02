@@ -4,6 +4,7 @@ import type { SigoAuthHeaders } from '@/services/sigoAuthService';
 import { InvoiceIdempotency } from '@/shared/idempotency';
 import http from 'http';
 import https from 'https';
+import crypto from 'crypto';
 
 export interface CreateClientData {
   tipoDocumento: 'RUC' | 'DNI' | 'CE' | 'NIT' | 'CC';
@@ -53,9 +54,38 @@ export class InvoiceService {
   private static taxesCache = new Map<string, { items: Array<any>; exp: number }>();
   private static readonly TTL_MS = 10 * 60 * 1000;
 
+  // Acepta UUID v4 (con o sin guiones) o patrón base64url/alfanumérico seguro [A-Za-z0-9_-]{10,64}
   private isValidIdempotencyKey(key?: string): boolean {
     if (!key || typeof key !== 'string') return false;
-    return /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(key);
+    const t = key.trim();
+    const uuidV4Hyphens = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    const uuidV4Compact = /^[0-9a-f]{32}$/i;
+    const safeToken = /^[A-Za-z0-9_-]{10,64}$/;
+    return uuidV4Hyphens.test(t) || uuidV4Compact.test(t) || safeToken.test(t);
+  }
+
+  // Normaliza claves (uuid v4 → sin guiones). Si no es válida, devuelve undefined
+  private normalizeIdempotencyKey(key?: string): string | undefined {
+    if (!key || typeof key !== 'string') return undefined;
+    const t = key.trim();
+    const uuidV4Hyphens = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    const uuidV4Compact = /^[0-9a-f]{32}$/i;
+    const safeToken = /^[A-Za-z0-9_-]{10,64}$/;
+    if (uuidV4Hyphens.test(t)) return t.replace(/-/g, '');
+    if (uuidV4Compact.test(t) || safeToken.test(t)) return t;
+    return undefined;
+  }
+
+  // Genera una clave compacta compatible (sin guiones, base64url)
+  private generateIdempotencyKey(): string {
+    try {
+      if (typeof (crypto as any).randomUUID === 'function') {
+        return (crypto as any).randomUUID().replace(/-/g, '');
+      }
+    } catch {}
+    // Fallback base64url de 24 bytes (~32 chars)
+    const b64 = crypto.randomBytes(24).toString('base64');
+    return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+/g, '');
   }
 
   constructor() {
@@ -339,8 +369,11 @@ export class InvoiceService {
     sellerIdOverride?: number,
     sellerEmailHint?: string,
   ): Promise<Record<string, unknown>> {
-    if (idempotencyKey) {
-      const cached = InvoiceIdempotency.get(idempotencyKey);
+    // Normaliza o genera clave idempotente local
+    const normalizedIdem = this.normalizeIdempotencyKey(idempotencyKey) || this.generateIdempotencyKey();
+
+    if (normalizedIdem) {
+      const cached = InvoiceIdempotency.get(normalizedIdem);
       if (cached) return cached;
     }
 
@@ -469,8 +502,9 @@ export class InvoiceService {
     try {
       const invoiceTimeout = parseInt(process.env.SIIGO_INVOICE_TIMEOUT_MS || process.env.SIGO_TIMEOUT || '60000', 10);
       const headers = { ...authHeaders } as Record<string, string>;
-      if (this.isValidIdempotencyKey(idempotencyKey)) {
-        headers['Idempotency-Key'] = idempotencyKey as string;
+      // Siempre enviar clave normalizada/generada
+      if (this.isValidIdempotencyKey(normalizedIdem)) {
+        headers['Idempotency-Key'] = normalizedIdem as string;
       }
       headers['Content-Type'] = 'application/json';
       headers['Accept'] = 'application/json';
@@ -478,17 +512,17 @@ export class InvoiceService {
 
       const variants = this.buildSellerVariants(sigoPayload, Number(resolvedSellerId));
       // eslint-disable-next-line no-console
-      console.log('[ApiSigo] intentos variantes seller', { idem: idempotencyKey, variants: variants.length });
+      console.log('[ApiSigo] intentos variantes seller', { idem: normalizedIdem, variants: variants.length });
 
       let lastErr: any;
       for (let i = 0; i < variants.length; i++) {
         const payloadToSend: any = JSON.parse(JSON.stringify(variants[i]));
         // eslint-disable-next-line no-console
-        console.log('[ApiSigo] intento envío', { idem: idempotencyKey, variant: i + 1, hasDocSeller: !!payloadToSend?.document?.seller, hasRootSeller: Object.prototype.hasOwnProperty.call(payloadToSend, 'seller') });
+        console.log('[ApiSigo] intento envío', { idem: normalizedIdem, variant: i + 1, hasDocSeller: !!payloadToSend?.document?.seller, hasRootSeller: Object.prototype.hasOwnProperty.call(payloadToSend, 'seller') });
         try {
           const response = await this.client.post('/v1/invoices', payloadToSend, { headers, timeout: invoiceTimeout });
           const out = (response as { data: Record<string, unknown> }).data;
-          if (idempotencyKey) InvoiceIdempotency.set(idempotencyKey, out);
+          if (normalizedIdem) InvoiceIdempotency.set(normalizedIdem, out);
           return out;
         } catch (err: any) {
           const siigoCode = err?.response?.headers?.['siigoapi-error-code'];
@@ -496,8 +530,27 @@ export class InvoiceService {
           const params = err?.response?.data?.Errors?.[0]?.Params || [];
           const isSellerReq = siigoCode === 'parameter_required' && (msg?.toLowerCase().includes('seller') || params?.includes('seller'));
           const isInvalidTax = siigoCode === 'invalid_reference' && (msg?.toLowerCase().includes('tax') || params?.some((p: string) => p.includes('taxes')));
+          const isInvalidIdem = siigoCode === 'invalid_idempotency_key' || /idempotency-key/i.test(msg || '');
           // eslint-disable-next-line no-console
-          console.error('[ApiSigo] fallo variante', { idem: idempotencyKey, variant: i + 1, siigoCode, msg });
+          console.error('[ApiSigo] fallo variante', { idem: normalizedIdem, variant: i + 1, siigoCode, msg });
+
+          // Reintento 1: si la clave de idempotencia es rechazada por Siigo, reintentar sin el header
+          if (isInvalidIdem && headers['Idempotency-Key']) {
+            const headersNoIdem = { ...headers };
+            delete headersNoIdem['Idempotency-Key'];
+            try {
+              // eslint-disable-next-line no-console
+              console.log('[ApiSigo] reintento sin idempotency-key', { idem: normalizedIdem });
+              const response2 = await this.client.post('/v1/invoices', payloadToSend, { headers: headersNoIdem, timeout: invoiceTimeout });
+              const out2 = (response2 as { data: Record<string, unknown> }).data;
+              if (normalizedIdem) InvoiceIdempotency.set(normalizedIdem, out2);
+              return out2;
+            } catch (err2: any) {
+              lastErr = err2;
+              break;
+            }
+          }
+
           if (isInvalidTax) {
             const withoutTaxes = JSON.parse(JSON.stringify(payloadToSend));
             if (Array.isArray(withoutTaxes.items)) {
@@ -505,10 +558,10 @@ export class InvoiceService {
             }
             try {
               // eslint-disable-next-line no-console
-              console.log('[ApiSigo] reintento sin taxes', { idem: idempotencyKey });
+              console.log('[ApiSigo] reintento sin taxes', { idem: normalizedIdem });
               const response2 = await this.client.post('/v1/invoices', withoutTaxes, { headers, timeout: invoiceTimeout });
               const out2 = (response2 as { data: Record<string, unknown> }).data;
-              if (idempotencyKey) InvoiceIdempotency.set(idempotencyKey, out2);
+              if (normalizedIdem) InvoiceIdempotency.set(normalizedIdem, out2);
               return out2;
             } catch (err2: any) {
               lastErr = err2;
@@ -556,7 +609,7 @@ export class InvoiceService {
         payloadShape: shape,
       };
       // eslint-disable-next-line no-console
-      console.error('[ApiSigo] error final createInvoice', { idem: idempotencyKey, status: e.statusCode, siigoCode, shape });
+      console.error('[ApiSigo] error final createInvoice', { idem: normalizedIdem, status: e.statusCode, siigoCode, shape });
       throw e;
     }
   }
