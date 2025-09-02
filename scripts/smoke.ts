@@ -40,7 +40,7 @@ async function main() {
     items: [ { code: 'QFI-P09-P03', description: 'Producto demo', quantity: 1, price: 12345 } ],
     observations: 'Smoke test desde script',
   };
-  results.push(['POST /api/invoices', await post('/api/invoices', createBody, { 'Idempotency-Key': 'smoke-001' })]);
+  results.push(['POST /api/invoices', await post('/api/invoices', createBody)]);
 
   for (const [name, r] of results) {
     if (r.ok) {

@@ -48,8 +48,6 @@ describe('InvoicesController (e2e)', () => {
   const authHeaders = {
     'x-email': 'tester@example.com',
     'x-api-key': 'abc:123',
-    // optional, but included for completeness
-    'Idempotency-Key': '00000000-0000-4000-8000-000000000000',
   };
 
   it('GET /api/invoices/__health should respond ok', async () => {

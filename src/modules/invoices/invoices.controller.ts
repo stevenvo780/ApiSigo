@@ -37,7 +37,7 @@ export class InvoicesController {
   @Post()
   @HttpCode(HttpStatus.CREATED)
   async create(@Req() req: RequestWithSigo, @Body() dto: CreateInvoiceDto) {
-    const idem = (req.headers['idempotency-key'] as string) || undefined;
+    const idem = undefined; // ya no se acepta desde el cliente
     const authEmail = (req as any)?.sigoCredentials?.email || (req.headers['x-email'] as string) || undefined;
     const partner = req.sigoAuthHeaders?.['Partner-Id'];
     try {
@@ -48,13 +48,7 @@ export class InvoicesController {
         items: (dto?.items || []).length,
         hasPayments: Array.isArray(dto?.payments),
       });
-      const result = await this.invoiceService.createInvoice(
-        dto as any,
-        req.sigoAuthHeaders!,
-        idem,
-        undefined,
-        authEmail,
-      );
+      const result = await this.invoiceService.createInvoice(dto as any, req.sigoAuthHeaders!, undefined, authEmail);
       console.log('[ApiSigo] ← /invoices create OK', { idem, partner, ok: true });
       return { success: true, message: 'Factura creada exitosamente', data: result };
     } catch (e: any) {
@@ -75,7 +69,7 @@ export class InvoicesController {
   @HttpCode(HttpStatus.CREATED)
   async createFromOrder(@Req() req: RequestWithSigo, @Body() order: CreateInvoiceFromOrderDto) {
     const dto = this.invoiceService.convertOrderToInvoice(order as any);
-    const idem = (req.headers['idempotency-key'] as string) || undefined;
+    const idem = undefined; // ya no se acepta desde el cliente
     const authEmail = (req as any)?.sigoCredentials?.email || (req.headers['x-email'] as string) || undefined;
     const partner = req.sigoAuthHeaders?.['Partner-Id'];
     try {
@@ -86,7 +80,7 @@ export class InvoicesController {
         hasCustomerData: !!dto?.customerData,
         items: (dto?.items || []).length,
       });
-      const result = await this.invoiceService.createInvoice(dto as any, req.sigoAuthHeaders!, idem, undefined, authEmail);
+      const result = await this.invoiceService.createInvoice(dto as any, req.sigoAuthHeaders!, undefined, authEmail);
       console.log('[ApiSigo] ← /invoices/from-order OK', { idem, partner, ok: true });
       return { success: true, message: 'Factura creada desde orden', data: result };
     } catch (e: any) {

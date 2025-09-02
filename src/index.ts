@@ -23,7 +23,6 @@ async function bootstrap() {
       'x-email',
       'x-api-key',
       'x-hub-signature',
-      'Idempotency-Key',
       'Partner-Id',
     ],
   });

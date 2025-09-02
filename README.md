@@ -49,12 +49,6 @@ Base: `http://localhost:3004`
 { "success": true, "message": "OK", "data": { } }
 ```
 
-Idempotencia
-```http
-Idempotency-Key: <uuid|hash>
-```
-Si se envía el header `Idempotency-Key`, la creación de factura será idempotente por 10 minutos.
-
 Error
 ```json
 { "error": "BadRequest", "message": "Descripción", "details": { } }

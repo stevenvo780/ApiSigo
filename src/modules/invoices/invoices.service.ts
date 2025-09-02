@@ -1,10 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import axios from 'axios';
+type AxiosInstance = ReturnType<typeof axios.create>;
+type AxiosRequestConfig = any;
+type AxiosResponse = any;
+type AxiosError = any;
 import type { SigoAuthHeaders } from '@/services/sigoAuthService';
-import { InvoiceIdempotency } from '@/shared/idempotency';
 import http from 'http';
 import https from 'https';
-import crypto from 'crypto';
 
 export interface CreateClientData {
   tipoDocumento: 'RUC' | 'DNI' | 'CE' | 'NIT' | 'CC';
@@ -47,64 +49,28 @@ export interface CreateInvoiceData {
 
 @Injectable()
 export class InvoiceService {
-  private client: ReturnType<typeof axios.create>;
-
-  private static paymentTypesCache = new Map<string, { items: Array<{ id: number; name?: string; active?: boolean }>; exp: number }>();
-  private static sellersCache = new Map<string, { items: Array<any>; exp: number }>();
-  private static taxesCache = new Map<string, { items: Array<any>; exp: number }>();
-  private static readonly TTL_MS = 10 * 60 * 1000;
+  // Cliente HTTP y caches
+  private client: AxiosInstance;
+  private static readonly TTL_MS = 5 * 60 * 1000; // 5 minutos
+  private static paymentTypesCache = new Map<string, { items: any[]; exp: number }>();
+  private static sellersCache = new Map<string, { items: any[]; exp: number }>();
+  private static taxesCache = new Map<string, { items: any[]; exp: number }>();
 
   // Acepta UUID v4 (con o sin guiones) o patrón base64url/alfanumérico seguro [A-Za-z0-9_-]{10,64}
-  private isValidIdempotencyKey(key?: string): boolean {
-    if (!key || typeof key !== 'string') return false;
-    const t = key.trim();
-    const uuidV4Hyphens = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-    const uuidV4Compact = /^[0-9a-f]{32}$/i;
-    const safeToken = /^[A-Za-z0-9_-]{10,64}$/;
-    return uuidV4Hyphens.test(t) || uuidV4Compact.test(t) || safeToken.test(t);
-  }
 
   // Normaliza claves (uuid v4 → sin guiones). Si no es válida, devuelve undefined
-  private normalizeIdempotencyKey(key?: string): string | undefined {
-    if (!key || typeof key !== 'string') return undefined;
-    const t = key.trim();
-    const uuidV4Hyphens = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-    const uuidV4Compact = /^[0-9a-f]{32}$/i;
-    const safeToken = /^[A-Za-z0-9_-]{10,64}$/;
-    if (uuidV4Hyphens.test(t)) return t.replace(/-/g, '');
-    if (uuidV4Compact.test(t) || safeToken.test(t)) return t;
-    return undefined;
-  }
 
   // Genera una clave compacta compatible (sin guiones, base64url)
-  private generateIdempotencyKey(): string {
-    try {
-      if (typeof (crypto as any).randomUUID === 'function') {
-        return (crypto as any).randomUUID().replace(/-/g, '');
-      }
-    } catch {}
-    // Fallback base64url de 24 bytes (~32 chars)
-    const b64 = crypto.randomBytes(24).toString('base64');
-    return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+/g, '');
-  }
 
   constructor() {
-    const httpAgent = new http.Agent({ keepAlive: true, maxSockets: 50 });
-    const httpsAgent = new https.Agent({ keepAlive: true, maxSockets: 50 });
-    const baseConfig: any = {
-      baseURL: process.env.SIGO_API_URL || 'https://api.siigo.com',
-      timeout: parseInt(process.env.SIGO_TIMEOUT || '30000', 10),
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-      },
-      httpAgent,
-      httpsAgent,
-    };
-    this.client = axios.create(baseConfig);
+    const baseURL = process.env.SIIGO_API_URL || process.env.SIGO_API_URL || process.env.SIGO_BASE_URL || process.env.SIIGO_BASE_URL;
+    const timeout = parseInt(process.env.SIIGO_TIMEOUT || process.env.SIGO_TIMEOUT || '60000', 10);
+    const httpAgent = new http.Agent({ keepAlive: true });
+    const httpsAgent = new https.Agent({ keepAlive: true });
+    this.client = axios.create({ baseURL, timeout, httpAgent, httpsAgent } as any);
 
-    this.client.interceptors.request.use((config) => {
-      (config as any).meta = { start: Date.now(), idem: (config.headers as any)?.['Idempotency-Key'] };
+    this.client.interceptors.request.use((config: AxiosRequestConfig) => {
+      (config as any).meta = { start: Date.now() };
       // Log compacto de request
       try {
         const isInv = String(config.url).includes('/v1/invoices') && String(config.method).toLowerCase() === 'post';
@@ -119,34 +85,32 @@ export class InvoiceService {
             docSellerId: typeof body?.document?.seller_id,
           };
           // eslint-disable-next-line no-console
-          console.log('[SIGO] → POST /v1/invoices', { idem: (config.headers as any)?.['Idempotency-Key'], items, hasTaxes, sellerShapes });
+          console.log('[SIGO] → POST /v1/invoices', { items, hasTaxes, sellerShapes });
         }
       } catch {}
       return config;
     });
     this.client.interceptors.response.use(
-      (res) => {
+      (res: AxiosResponse) => {
         const start = (res.config as any).meta?.start || Date.now();
         const ms = Date.now() - start;
-        const idem = (res.config.headers as any)?.['Idempotency-Key'];
         try {
           if (String(res.config.url).includes('/v1/invoices') && String(res.config.method).toLowerCase() === 'post') {
             // eslint-disable-next-line no-console
-            console.log('[SIGO] ← /v1/invoices OK', { idem, status: res.status, ms });
+            console.log('[SIGO] ← /v1/invoices OK', { status: res.status, ms });
           }
         } catch {}
         return res;
       },
-      (err) => {
+      (err: AxiosError) => {
         const cfg = err?.config || {};
         const start = (cfg as any).meta?.start || Date.now();
         const ms = Date.now() - start;
-        const idem = (cfg.headers as any)?.['Idempotency-Key'];
-        const status = err?.response?.status;
-        const url = cfg?.url;
-        const msg = err?.response?.data?.Errors?.[0]?.Message || err?.message;
+        const status = (err && (err as any).response) ? (err as any).response.status : undefined;
+        const url = (cfg as any)?.url;
+        const msg = (err as any)?.response?.data?.Errors?.[0]?.Message || (err as any)?.message;
         // eslint-disable-next-line no-console
-        console.error('[SIGO] × request error', { idem, url, status, ms, msg });
+        console.error('[SIGO] × request error', { url, status, ms, msg });
         return Promise.reject(err);
       },
     );
@@ -365,17 +329,10 @@ export class InvoiceService {
   async createInvoice(
     data: CreateInvoiceData,
     authHeaders: SigoAuthHeaders,
-    idempotencyKey?: string,
     sellerIdOverride?: number,
     sellerEmailHint?: string,
   ): Promise<Record<string, unknown>> {
-    // Normaliza o genera clave idempotente local
-    const normalizedIdem = this.normalizeIdempotencyKey(idempotencyKey) || this.generateIdempotencyKey();
-
-    if (normalizedIdem) {
-      const cached = InvoiceIdempotency.get(normalizedIdem);
-      if (cached) return cached;
-    }
+     // Sin idempotencia local: siempre se envía la factura a Siigo
 
     if (data.customerData && data.customerData.numeroDocumento) {
       const existingCustomer = await this.findCustomerByIdentification(
@@ -469,7 +426,6 @@ export class InvoiceService {
 
     // eslint-disable-next-line no-console
     console.log('[ApiSigo] build payload resumen', {
-      idem: idempotencyKey,
       items: preparedItems.length,
       subtotal,
       taxesTotal,
@@ -502,27 +458,22 @@ export class InvoiceService {
     try {
       const invoiceTimeout = parseInt(process.env.SIIGO_INVOICE_TIMEOUT_MS || process.env.SIGO_TIMEOUT || '60000', 10);
       const headers = { ...authHeaders } as Record<string, string>;
-      // Siempre enviar clave normalizada/generada
-      if (this.isValidIdempotencyKey(normalizedIdem)) {
-        headers['Idempotency-Key'] = normalizedIdem as string;
-      }
       headers['Content-Type'] = 'application/json';
       headers['Accept'] = 'application/json';
       if (headers['Partner-Id'] && !headers['Partner-ID']) headers['Partner-ID'] = headers['Partner-Id'];
 
       const variants = this.buildSellerVariants(sigoPayload, Number(resolvedSellerId));
       // eslint-disable-next-line no-console
-      console.log('[ApiSigo] intentos variantes seller', { idem: normalizedIdem, variants: variants.length });
+      console.log('[ApiSigo] intentos variantes seller', { variants: variants.length });
 
       let lastErr: any;
       for (let i = 0; i < variants.length; i++) {
         const payloadToSend: any = JSON.parse(JSON.stringify(variants[i]));
         // eslint-disable-next-line no-console
-        console.log('[ApiSigo] intento envío', { idem: normalizedIdem, variant: i + 1, hasDocSeller: !!payloadToSend?.document?.seller, hasRootSeller: Object.prototype.hasOwnProperty.call(payloadToSend, 'seller') });
+        console.log('[ApiSigo] intento envío', { variant: i + 1, hasDocSeller: !!payloadToSend?.document?.seller, hasRootSeller: Object.prototype.hasOwnProperty.call(payloadToSend, 'seller') });
         try {
           const response = await this.client.post('/v1/invoices', payloadToSend, { headers, timeout: invoiceTimeout });
           const out = (response as { data: Record<string, unknown> }).data;
-          if (normalizedIdem) InvoiceIdempotency.set(normalizedIdem, out);
           return out;
         } catch (err: any) {
           const siigoCode = err?.response?.headers?.['siigoapi-error-code'];
@@ -530,159 +481,140 @@ export class InvoiceService {
           const params = err?.response?.data?.Errors?.[0]?.Params || [];
           const isSellerReq = siigoCode === 'parameter_required' && (msg?.toLowerCase().includes('seller') || params?.includes('seller'));
           const isInvalidTax = siigoCode === 'invalid_reference' && (msg?.toLowerCase().includes('tax') || params?.some((p: string) => p.includes('taxes')));
-          const isInvalidIdem = siigoCode === 'invalid_idempotency_key' || /idempotency-key/i.test(msg || '');
           // eslint-disable-next-line no-console
-          console.error('[ApiSigo] fallo variante', { idem: normalizedIdem, variant: i + 1, siigoCode, msg });
+          console.error('[ApiSigo] fallo variante', { variant: i + 1, siigoCode, msg });
 
-          // Reintento 1: si la clave de idempotencia es rechazada por Siigo, reintentar sin el header
-          if (isInvalidIdem && headers['Idempotency-Key']) {
-            const headersNoIdem = { ...headers };
-            delete headersNoIdem['Idempotency-Key'];
-            try {
-              // eslint-disable-next-line no-console
-              console.log('[ApiSigo] reintento sin idempotency-key', { idem: normalizedIdem });
-              const response2 = await this.client.post('/v1/invoices', payloadToSend, { headers: headersNoIdem, timeout: invoiceTimeout });
-              const out2 = (response2 as { data: Record<string, unknown> }).data;
-              if (normalizedIdem) InvoiceIdempotency.set(normalizedIdem, out2);
-              return out2;
-            } catch (err2: any) {
-              lastErr = err2;
-              break;
-            }
-          }
+           if (isInvalidTax) {
+             const withoutTaxes = JSON.parse(JSON.stringify(payloadToSend));
+             if (Array.isArray(withoutTaxes.items)) {
+               withoutTaxes.items = withoutTaxes.items.map((it: any) => { const { taxes, ...rest } = it || {}; return rest; });
+             }
+             try {
+               // eslint-disable-next-line no-console
+               console.log('[ApiSigo] reintento sin taxes');
+               const response2 = await this.client.post('/v1/invoices', withoutTaxes, { headers, timeout: invoiceTimeout });
+               const out2 = (response2 as { data: Record<string, unknown> }).data;
+               return out2;
+             } catch (err2: any) {
+               lastErr = err2;
+               break;
+             }
+           }
+           if (!isSellerReq || i === variants.length - 1) { lastErr = err; break; }
+           lastErr = err;
+         }
+       }
+       throw lastErr;
+     } catch (error: any) {
+       const status = error?.response?.status;
+       const details = error?.response?.data;
+       const siigoCode = error?.response?.headers?.['siigoapi-error-code'];
+       const e = new Error(error?.message || 'SIGO API error') as any;
+       e.code = 'SIGO_API_ERROR';
+       e.statusCode = status || 502;
+       let sentBody: any;
+       try { sentBody = typeof error?.config?.data === 'string' ? error.config.data : JSON.stringify(error?.config?.data); } catch {}
+       const shape = (() => {
+         try {
+           const s: any = (typeof sentBody === 'string' ? JSON.parse(sentBody) : sentBody) || {};
+           return {
+             hasRootSeller: Object.prototype.hasOwnProperty.call(s, 'seller'),
+             rootSeller: s?.seller && typeof s?.seller,
+             hasRootSellerId: Object.prototype.hasOwnProperty.call(s, 'seller_id'),
+             rootSellerId: s?.seller_id && typeof s?.seller_id,
+             hasDoc: !!s?.document,
+             hasDocSeller: s?.document && Object.prototype.hasOwnProperty.call(s.document, 'seller'),
+             docSeller: s?.document?.seller && typeof s?.document?.seller,
+             hasDocSellerId: s?.document && Object.prototype.hasOwnProperty.call(s.document, 'seller_id'),
+             docSellerId: s?.document?.seller_id && typeof s?.document?.seller_id,
+           };
+         } catch { return null; }
+       })();
+       e.details = {
+         siigoCode,
+         details,
+         code: error?.code,
+         errno: error?.errno,
+         url: error?.config?.url,
+         method: error?.config?.method,
+         timeout: error?.config?.timeout,
+         payloadShape: shape,
+       };
+       // eslint-disable-next-line no-console
+       console.error('[ApiSigo] error final createInvoice', { status: e.statusCode, siigoCode, shape });
+       throw e;
+     }
+   }
 
-          if (isInvalidTax) {
-            const withoutTaxes = JSON.parse(JSON.stringify(payloadToSend));
-            if (Array.isArray(withoutTaxes.items)) {
-              withoutTaxes.items = withoutTaxes.items.map((it: any) => { const { taxes, ...rest } = it || {}; return rest; });
-            }
-            try {
-              // eslint-disable-next-line no-console
-              console.log('[ApiSigo] reintento sin taxes', { idem: normalizedIdem });
-              const response2 = await this.client.post('/v1/invoices', withoutTaxes, { headers, timeout: invoiceTimeout });
-              const out2 = (response2 as { data: Record<string, unknown> }).data;
-              if (normalizedIdem) InvoiceIdempotency.set(normalizedIdem, out2);
-              return out2;
-            } catch (err2: any) {
-              lastErr = err2;
-              break;
-            }
-          }
-          if (!isSellerReq || i === variants.length - 1) { lastErr = err; break; }
-          lastErr = err;
-        }
-      }
-      throw lastErr;
-    } catch (error: any) {
-      const status = error?.response?.status;
-      const details = error?.response?.data;
-      const siigoCode = error?.response?.headers?.['siigoapi-error-code'];
-      const e = new Error(error?.message || 'SIGO API error') as any;
-      e.code = 'SIGO_API_ERROR';
-      e.statusCode = status || 502;
-      let sentBody: any;
-      try { sentBody = typeof error?.config?.data === 'string' ? error.config.data : JSON.stringify(error?.config?.data); } catch {}
-      const shape = (() => {
-        try {
-          const s: any = (typeof sentBody === 'string' ? JSON.parse(sentBody) : sentBody) || {};
-          return {
-            hasRootSeller: Object.prototype.hasOwnProperty.call(s, 'seller'),
-            rootSeller: s?.seller && typeof s?.seller,
-            hasRootSellerId: Object.prototype.hasOwnProperty.call(s, 'seller_id'),
-            rootSellerId: s?.seller_id && typeof s?.seller_id,
-            hasDoc: !!s?.document,
-            hasDocSeller: s?.document && Object.prototype.hasOwnProperty.call(s.document, 'seller'),
-            docSeller: s?.document?.seller && typeof s?.document?.seller,
-            hasDocSellerId: s?.document && Object.prototype.hasOwnProperty.call(s.document, 'seller_id'),
-            docSellerId: s?.document?.seller_id && typeof s?.document?.seller_id,
-          };
-        } catch { return null; }
-      })();
-      e.details = {
-        siigoCode,
-        details,
-        code: error?.code,
-        errno: error?.errno,
-        url: error?.config?.url,
-        method: error?.config?.method,
-        timeout: error?.config?.timeout,
-        payloadShape: shape,
-      };
-      // eslint-disable-next-line no-console
-      console.error('[ApiSigo] error final createInvoice', { idem: normalizedIdem, status: e.statusCode, siigoCode, shape });
-      throw e;
-    }
-  }
+   async getPaymentTypes(
+     authHeaders: SigoAuthHeaders,
+     documentType: string = 'FV',
+   ): Promise<Record<string, unknown>> {
+     const response = await this.client.get(`/v1/payment-types?document_type=${documentType}`, {
+       headers: authHeaders,
+     });
+     return (response as { data: Record<string, unknown> }).data;
+   }
 
-  async getPaymentTypes(
-    authHeaders: SigoAuthHeaders,
-    documentType: string = 'FV',
-  ): Promise<Record<string, unknown>> {
-    const response = await this.client.get(`/v1/payment-types?document_type=${documentType}`, {
-      headers: authHeaders,
-    });
-    return (response as { data: Record<string, unknown> }).data;
-  }
+   async createCreditNoteByInvoiceNumber(
+     serie: string,
+     numero: string | number,
+     authHeaders: SigoAuthHeaders,
+     motivo?: string,
+   ): Promise<Record<string, unknown>> {
+     const res = await this.client.get(`/v1/invoices?number=${encodeURIComponent(String(numero))}` ,{ headers: authHeaders });
+     const list: any[] = (res as any).data?.results || [];
+     const inv = Array.isArray(list) && list.length > 0 ? list[0] : null;
+     if (!inv || !inv.id) {
+       throw new Error('Factura no encontrada en Siigo');
+     }
 
-  async createCreditNoteByInvoiceNumber(
-    serie: string,
-    numero: string | number,
-    authHeaders: SigoAuthHeaders,
-    motivo?: string,
-  ): Promise<Record<string, unknown>> {
-    const res = await this.client.get(`/v1/invoices?number=${encodeURIComponent(String(numero))}` ,{ headers: authHeaders });
-    const list: any[] = (res as any).data?.results || [];
-    const inv = Array.isArray(list) && list.length > 0 ? list[0] : null;
-    if (!inv || !inv.id) {
-      throw new Error('Factura no encontrada en Siigo');
-    }
+     const payload: Record<string, unknown> = {
+       document: { id: parseInt(process.env.SIIGO_CREDIT_NOTE_DOCUMENT_ID || '28420', 10) },
+       date: new Date().toISOString().split('T')[0],
+       customer: {
+         identification: inv?.customer?.identification || '',
+         branch_office: 0,
+       },
+       invoice: { id: inv.id },
+       observations: motivo || 'Anulación total',
+     };
 
-    const payload: Record<string, unknown> = {
-      document: { id: parseInt(process.env.SIIGO_CREDIT_NOTE_DOCUMENT_ID || '28420', 10) },
-      date: new Date().toISOString().split('T')[0],
-      customer: {
-        identification: inv?.customer?.identification || '',
-        branch_office: 0,
-      },
-      invoice: { id: inv.id },
-      observations: motivo || 'Anulación total',
-    };
+     const cn = await this.client.post('/v1/credit-notes', payload, { headers: authHeaders });
+     return (cn as { data: Record<string, unknown> }).data;
+   }
 
-    const cn = await this.client.post('/v1/credit-notes', payload, { headers: authHeaders });
-    return (cn as { data: Record<string, unknown> }).data;
-  }
+   convertOrderToInvoice(order: {
+     id: number;
+     store?: { name?: string };
+     customer?: { documentNumber?: string; name?: string; email?: string; phone?: string };
+     user?: { documentNumber?: string; name?: string; email?: string };
+     items: Array<{ product: { id: number; title: string; code?: string }; quantity: number; finalPrice: number }>;
+   }): CreateInvoiceData {
+     const idDoc = order.customer?.documentNumber || order.user?.documentNumber || '222222222222';
 
-  convertOrderToInvoice(order: {
-    id: number;
-    store?: { name?: string };
-    customer?: { documentNumber?: string; name?: string; email?: string; phone?: string };
-    user?: { documentNumber?: string; name?: string; email?: string };
-    items: Array<{ product: { id: number; title: string; code?: string }; quantity: number; finalPrice: number }>;
-  }): CreateInvoiceData {
-    const idDoc = order.customer?.documentNumber || order.user?.documentNumber || '222222222222';
+     const customerData = idDoc !== '222222222222'
+       ? {
+           tipoDocumento: 'CC' as const,
+           numeroDocumento: idDoc,
+           razonSocial: order.customer?.name || order.user?.name || 'Cliente Sin Nombre',
+           email: order.customer?.email || order.user?.email,
+           telefono: order.customer?.phone,
+         }
+       : undefined;
 
-    const customerData = idDoc !== '222222222222'
-      ? {
-          tipoDocumento: 'CC' as const,
-          numeroDocumento: idDoc,
-          razonSocial: order.customer?.name || order.user?.name || 'Cliente Sin Nombre',
-          email: order.customer?.email || order.user?.email,
-          telefono: order.customer?.phone,
-        }
-      : undefined;
-
-    return {
-      date: new Date().toISOString().split('T')[0],
-      customer: { identification: idDoc, branch_office: 0 },
-      customerData,
-      items: order.items.map((it) => ({
-        code: it.product.code || `GRAF-${it.product.id}`,
-        description: it.product.title,
-        quantity: it.quantity,
-        price: it.finalPrice,
-        discount: 0,
-      })),
-      observations: `Factura generada desde orden #${order.id}${order.store?.name ? ' - Tienda: ' + order.store.name : ''}`,
-    };
-  }
+     return {
+       date: new Date().toISOString().split('T')[0],
+       customer: { identification: idDoc, branch_office: 0 },
+       customerData,
+       items: order.items.map((it) => ({
+         code: it.product.code || `GRAF-${it.product.id}`,
+         description: it.product.title,
+         quantity: it.quantity,
+         price: it.finalPrice,
+         discount: 0,
+       })),
+       observations: `Factura generada desde orden #${order.id}${order.store?.name ? ' - Tienda: ' + order.store.name : ''}`,
+     };
+   }
 }
