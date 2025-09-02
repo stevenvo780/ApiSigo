@@ -74,11 +74,22 @@ export class InvoiceService {
     this.client = axios.create(baseConfig);
 
     this.client.interceptors.request.use((config) => {
-      (config as any).meta = { start: Date.now() };
+      (config as any).meta = { start: Date.now(), idem: (config.headers as any)?.['Idempotency-Key'] };
+      // Log compacto de request
       try {
-        if (String(config.url).includes('/v1/invoices') && String(config.method).toLowerCase() === 'post') {
+        const isInv = String(config.url).includes('/v1/invoices') && String(config.method).toLowerCase() === 'post';
+        if (isInv) {
           const body = (config as any).data;
-          const preview = typeof body === 'string' ? body : JSON.stringify(body);
+          const items = Array.isArray(body?.items) ? body.items.length : 0;
+          const hasTaxes = !!(body?.items || []).some((it: any) => Array.isArray(it?.taxes) && it.taxes.length);
+          const sellerShapes = {
+            rootSeller: typeof body?.seller,
+            rootSellerId: typeof body?.seller_id,
+            docSeller: typeof body?.document?.seller,
+            docSellerId: typeof body?.document?.seller_id,
+          };
+          // eslint-disable-next-line no-console
+          console.log('[SIGO] → POST /v1/invoices', { idem: (config.headers as any)?.['Idempotency-Key'], items, hasTaxes, sellerShapes });
         }
       } catch {}
       return config;
@@ -87,15 +98,25 @@ export class InvoiceService {
       (res) => {
         const start = (res.config as any).meta?.start || Date.now();
         const ms = Date.now() - start;
+        const idem = (res.config.headers as any)?.['Idempotency-Key'];
+        try {
+          if (String(res.config.url).includes('/v1/invoices') && String(res.config.method).toLowerCase() === 'post') {
+            // eslint-disable-next-line no-console
+            console.log('[SIGO] ← /v1/invoices OK', { idem, status: res.status, ms });
+          }
+        } catch {}
         return res;
       },
       (err) => {
         const cfg = err?.config || {};
         const start = (cfg as any).meta?.start || Date.now();
         const ms = Date.now() - start;
+        const idem = (cfg.headers as any)?.['Idempotency-Key'];
         const status = err?.response?.status;
         const url = cfg?.url;
-        const code = err?.code;
+        const msg = err?.response?.data?.Errors?.[0]?.Message || err?.message;
+        // eslint-disable-next-line no-console
+        console.error('[SIGO] × request error', { idem, url, status, ms, msg });
         return Promise.reject(err);
       },
     );
@@ -384,8 +405,7 @@ export class InvoiceService {
 
     const defaultTaxId = process.env.SIIGO_TAX_ID ? parseInt(process.env.SIIGO_TAX_ID, 10) : undefined;
     const defaultTaxIsValid = await this.isValidTaxId(authHeaders, defaultTaxId);
-    if (defaultTaxId && !defaultTaxIsValid) {
-    }
+
     const preparedItems = await Promise.all((data.items || []).map(async (item) => {
       const base = item.quantity * item.price - (item.discount || 0);
       const taxes = (item.taxes && item.taxes.length > 0)
@@ -414,6 +434,17 @@ export class InvoiceService {
     const taxesTotal = preparedItems.reduce((t: number, it: any) => t + it.__tax, 0);
     const total = Math.round((subtotal + taxesTotal) * 100) / 100;
 
+    // eslint-disable-next-line no-console
+    console.log('[ApiSigo] build payload resumen', {
+      idem: idempotencyKey,
+      items: preparedItems.length,
+      subtotal,
+      taxesTotal,
+      total,
+      sellerId: resolvedSellerId,
+      hasCustomerData: !!data.customerData,
+    });
+
     const sigoPayload: Record<string, unknown> = {
       document: {
         id: parseInt(process.env.SIIGO_INVOICE_TYPE_ID || '28418', 10),
@@ -435,7 +466,6 @@ export class InvoiceService {
       ],
     };
 
-
     try {
       const invoiceTimeout = parseInt(process.env.SIIGO_INVOICE_TIMEOUT_MS || process.env.SIGO_TIMEOUT || '60000', 10);
       const headers = { ...authHeaders } as Record<string, string>;
@@ -445,13 +475,16 @@ export class InvoiceService {
       headers['Content-Type'] = 'application/json';
       headers['Accept'] = 'application/json';
       if (headers['Partner-Id'] && !headers['Partner-ID']) headers['Partner-ID'] = headers['Partner-Id'];
-      const headersDebug = { ...headers } as any;
-      if (headersDebug.Authorization) headersDebug.Authorization = 'Bearer ***';
 
       const variants = this.buildSellerVariants(sigoPayload, Number(resolvedSellerId));
+      // eslint-disable-next-line no-console
+      console.log('[ApiSigo] intentos variantes seller', { idem: idempotencyKey, variants: variants.length });
+
       let lastErr: any;
       for (let i = 0; i < variants.length; i++) {
         const payloadToSend: any = JSON.parse(JSON.stringify(variants[i]));
+        // eslint-disable-next-line no-console
+        console.log('[ApiSigo] intento envío', { idem: idempotencyKey, variant: i + 1, hasDocSeller: !!payloadToSend?.document?.seller, hasRootSeller: Object.prototype.hasOwnProperty.call(payloadToSend, 'seller') });
         try {
           const response = await this.client.post('/v1/invoices', payloadToSend, { headers, timeout: invoiceTimeout });
           const out = (response as { data: Record<string, unknown> }).data;
@@ -463,12 +496,16 @@ export class InvoiceService {
           const params = err?.response?.data?.Errors?.[0]?.Params || [];
           const isSellerReq = siigoCode === 'parameter_required' && (msg?.toLowerCase().includes('seller') || params?.includes('seller'));
           const isInvalidTax = siigoCode === 'invalid_reference' && (msg?.toLowerCase().includes('tax') || params?.some((p: string) => p.includes('taxes')));
+          // eslint-disable-next-line no-console
+          console.error('[ApiSigo] fallo variante', { idem: idempotencyKey, variant: i + 1, siigoCode, msg });
           if (isInvalidTax) {
             const withoutTaxes = JSON.parse(JSON.stringify(payloadToSend));
             if (Array.isArray(withoutTaxes.items)) {
               withoutTaxes.items = withoutTaxes.items.map((it: any) => { const { taxes, ...rest } = it || {}; return rest; });
             }
             try {
+              // eslint-disable-next-line no-console
+              console.log('[ApiSigo] reintento sin taxes', { idem: idempotencyKey });
               const response2 = await this.client.post('/v1/invoices', withoutTaxes, { headers, timeout: invoiceTimeout });
               const out2 = (response2 as { data: Record<string, unknown> }).data;
               if (idempotencyKey) InvoiceIdempotency.set(idempotencyKey, out2);
@@ -497,16 +534,14 @@ export class InvoiceService {
           const s: any = (typeof sentBody === 'string' ? JSON.parse(sentBody) : sentBody) || {};
           return {
             hasRootSeller: Object.prototype.hasOwnProperty.call(s, 'seller'),
-            rootSeller: s?.seller,
-            rootSellerType: typeof s?.seller,
+            rootSeller: s?.seller && typeof s?.seller,
             hasRootSellerId: Object.prototype.hasOwnProperty.call(s, 'seller_id'),
-            rootSellerId: s?.seller_id,
+            rootSellerId: s?.seller_id && typeof s?.seller_id,
             hasDoc: !!s?.document,
             hasDocSeller: s?.document && Object.prototype.hasOwnProperty.call(s.document, 'seller'),
-            docSeller: s?.document?.seller,
-            docSellerType: typeof s?.document?.seller,
+            docSeller: s?.document?.seller && typeof s?.document?.seller,
             hasDocSellerId: s?.document && Object.prototype.hasOwnProperty.call(s.document, 'seller_id'),
-            docSellerId: s?.document?.seller_id,
+            docSellerId: s?.document?.seller_id && typeof s?.document?.seller_id,
           };
         } catch { return null; }
       })();
@@ -518,10 +553,10 @@ export class InvoiceService {
         url: error?.config?.url,
         method: error?.config?.method,
         timeout: error?.config?.timeout,
-        sentBody,
-        payloadPreview: (() => { try { return JSON.stringify(sigoPayload); } catch { return null; } })(),
         payloadShape: shape,
       };
+      // eslint-disable-next-line no-console
+      console.error('[ApiSigo] error final createInvoice', { idem: idempotencyKey, status: e.statusCode, siigoCode, shape });
       throw e;
     }
   }
