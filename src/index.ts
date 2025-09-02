@@ -39,6 +39,7 @@ async function bootstrap() {
 
   const PORT = Number(process.env.PORT) || 8080;
   await app.listen(PORT);
+  console.log(`ApiSigo is running on port ${PORT}`);
 }
 
 bootstrap().catch(() => {
