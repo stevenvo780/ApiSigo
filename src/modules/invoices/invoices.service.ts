@@ -220,22 +220,6 @@ export class InvoiceService {
     return arr;
   }
 
-  private async resolvePaymentMethodId(authHeaders: SigoAuthHeaders, documentType: string = 'FV'): Promise<number | undefined> {
-    const raw = process.env.SIIGO_PAYMENT_METHOD_ID;
-    let candidate: number | undefined = raw ? parseInt(raw, 10) : undefined;
-    try {
-      const types = await this.listPaymentTypes(authHeaders, documentType);
-      const valid = (id?: number) => id && types.some((t: any) => Number(t.id) === id && (t.active ?? true));
-      if (valid(candidate)) return candidate;
-      const efectivo = types.find((t: any) => (t.name || '').toLowerCase() === 'efectivo' && (t.active ?? true));
-      if (efectivo?.id) return Number(efectivo.id);
-      const firstActive = types.find((t: any) => (t.active ?? true));
-      if (firstActive?.id) return Number(firstActive.id);
-      return candidate;
-    } catch (e) {
-      return candidate;
-    }
-  }
 
   private async listUsersSellerCatalog(authHeaders: SigoAuthHeaders) {
     const key = `${authHeaders['Partner-Id']}::users-sellers`;
@@ -332,8 +316,6 @@ export class InvoiceService {
     sellerIdOverride?: number,
     sellerEmailHint?: string,
   ): Promise<Record<string, unknown>> {
-     // Sin idempotencia local: siempre se envía la factura a Siigo
-
     if (data.customerData && data.customerData.numeroDocumento) {
       const existingCustomer = await this.findCustomerByIdentification(
         data.customerData.numeroDocumento,
@@ -379,7 +361,7 @@ export class InvoiceService {
       }
     }
 
-    const paymentMethodId = await this.resolvePaymentMethodId(authHeaders, 'FV');
+    // Ya no obtenemos paymentMethodId desde env - la configuración viene desde HubCentral
     let resolvedSellerId = sellerIdOverride ?? (await this.resolveSellerId(authHeaders, sellerEmailHint));
     if (!resolvedSellerId) {
       const envFallback = process.env.SIIGO_SELLER_ID || process.env.SIIGO_FALLBACK_SELLER_ID;
@@ -396,7 +378,7 @@ export class InvoiceService {
     const defaultTaxId = process.env.SIIGO_TAX_ID ? parseInt(process.env.SIIGO_TAX_ID, 10) : undefined;
     const defaultTaxIsValid = await this.isValidTaxId(authHeaders, defaultTaxId);
 
-    const preparedItems = await Promise.all((data.items || []).map(async (item) => {
+  const preparedItems = await Promise.all((data.items || []).map(async (item) => {
       const base = item.quantity * item.price - (item.discount || 0);
       const taxes = (item.taxes && item.taxes.length > 0)
         ? item.taxes
@@ -424,6 +406,12 @@ export class InvoiceService {
     const taxesTotal = preparedItems.reduce((t: number, it: any) => t + it.__tax, 0);
     const total = Math.round((subtotal + taxesTotal) * 100) / 100;
 
+    // Passthrough de payments: usar exactamente lo que viene desde HubCentral sin validar contra Siigo
+    // Si no vienen payments, dejamos que Siigo aplique su default (payments: undefined)
+    const safePayments: InvoicePayment[] | undefined = Array.isArray(data.payments) && data.payments.length > 0
+      ? data.payments.map((p) => ({ id: Number(p.id), value: Number(p.value), due_date: p.due_date }))
+      : undefined;
+
     // eslint-disable-next-line no-console
     console.log('[ApiSigo] build payload resumen', {
       items: preparedItems.length,
@@ -446,13 +434,12 @@ export class InvoiceService {
       },
       observations: data.observations,
       items: preparedItems.map(({ __base, __tax, ...it }: any) => it),
-      payments: data.payments || [
-        {
-          id: paymentMethodId ?? 1,
-          value: total,
-          due_date: data.date || new Date().toISOString().split('T')[0],
-        },
-      ],
+      payments:
+        (safePayments && safePayments.length > 0)
+          ? safePayments
+          : (data.payments && (Array.isArray(data.payments) && data.payments.length > 0)
+              ? data.payments
+              : undefined), // Ya no usamos fallback a paymentMethodId desde env - debe venir desde HubCentral
     };
 
     try {

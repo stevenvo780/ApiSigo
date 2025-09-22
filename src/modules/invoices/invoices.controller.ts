@@ -41,12 +41,16 @@ export class InvoicesController {
     const authEmail = (req as any)?.sigoCredentials?.email || (req.headers['x-email'] as string) || undefined;
     const partner = req.sigoAuthHeaders?.['Partner-Id'];
     try {
+      const paymentsPreview = Array.isArray((dto as any)?.payments)
+        ? (dto as any).payments.map((p: any) => ({ id: p?.id, value: p?.value, due_date: p?.due_date }))
+        : [];
       console.log('[ApiSigo] → /invoices create', {
         idem,
         partner,
         hasCustomerData: !!dto?.customerData,
         items: (dto?.items || []).length,
         hasPayments: Array.isArray(dto?.payments),
+        paymentsPreview,
       });
       const result = await this.invoiceService.createInvoice(dto as any, req.sigoAuthHeaders!, undefined, authEmail);
       console.log('[ApiSigo] ← /invoices create OK', { idem, partner, ok: true });

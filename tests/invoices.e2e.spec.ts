@@ -1,8 +1,8 @@
 import { Test } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import request from 'supertest';
-import { AppModule } from '@/app.module';
-import { InvoiceService } from '@/modules/invoices/invoices.service';
+import { AppModule } from '../src/app.module';
+import { InvoiceService } from '../src/modules/invoices/invoices.service';
 
 describe('InvoicesController (e2e)', () => {
   let app: INestApplication;
@@ -66,7 +66,6 @@ describe('InvoicesController (e2e)', () => {
     expect(mockInvoiceService.getPaymentTypes).toHaveBeenCalled();
     expect(res.body.success).toBe(true);
     expect(typeof res.body.message).toBe('string');
-    // data is optional in some serializations; if present, it should be an object/array
     if (res.body.data !== undefined) {
       expect(typeof res.body.data).toMatch(/object/);
     }
