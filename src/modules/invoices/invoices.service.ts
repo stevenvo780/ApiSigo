@@ -87,7 +87,7 @@ export class InvoiceService {
           // eslint-disable-next-line no-console
           console.log('[SIGO] → POST /v1/invoices', { items, hasTaxes, sellerShapes });
         }
-      } catch {}
+      } catch { }
       return config;
     });
     this.client.interceptors.response.use(
@@ -99,7 +99,7 @@ export class InvoiceService {
             // eslint-disable-next-line no-console
             console.log('[SIGO] ← /v1/invoices OK', { status: res.status, ms });
           }
-        } catch {}
+        } catch { }
         return res;
       },
       (err: AxiosError) => {
@@ -191,19 +191,19 @@ export class InvoiceService {
       fiscal_responsibilities: [{ code: 'R-99-PN' }],
       address: data.direccion
         ? {
-            address: data.direccion,
-          }
+          address: data.direccion,
+        }
         : undefined,
       phones: data.telefono ? [{ indicative: '57', number: data.telefono }] : undefined,
       contacts: data.email
         ? [
-            {
-              first_name: nombre,
-              last_name: apellido,
-              email: data.email,
-              phone: data.telefono ? { indicative: '57', number: data.telefono } : undefined,
-            },
-          ]
+          {
+            first_name: nombre,
+            last_name: apellido,
+            email: data.email,
+            phone: data.telefono ? { indicative: '57', number: data.telefono } : undefined,
+          },
+        ]
         : undefined,
     };
   }
@@ -304,8 +304,8 @@ export class InvoiceService {
     { const p = clean(base); p.seller = Number(sellerId); v.push(p); }
     { const p = clean(base); p.seller = { id: Number(sellerId) }; v.push(p); }
     { const p = clean(base); p.seller_id = Number(sellerId); v.push(p); }
-    { const p = clean(base); p.document = { ...(base.document||{}), seller: Number(sellerId) }; v.push(p); }
-    { const p = clean(base); p.document = { ...(base.document||{}), seller_id: Number(sellerId) }; v.push(p); }
+    { const p = clean(base); p.document = { ...(base.document || {}), seller: Number(sellerId) }; v.push(p); }
+    { const p = clean(base); p.document = { ...(base.document || {}), seller_id: Number(sellerId) }; v.push(p); }
     { const p = clean(base); p.SalesmanIdentification = String(sellerId); v.push(p); }
     return v;
   }
@@ -378,7 +378,7 @@ export class InvoiceService {
     const defaultTaxId = process.env.SIIGO_TAX_ID ? parseInt(process.env.SIIGO_TAX_ID, 10) : undefined;
     const defaultTaxIsValid = await this.isValidTaxId(authHeaders, defaultTaxId);
 
-  const preparedItems = await Promise.all((data.items || []).map(async (item) => {
+    const preparedItems = await Promise.all((data.items || []).map(async (item) => {
       const base = item.quantity * item.price - (item.discount || 0);
       const taxes = (item.taxes && item.taxes.length > 0)
         ? item.taxes
@@ -438,8 +438,8 @@ export class InvoiceService {
         (safePayments && safePayments.length > 0)
           ? safePayments
           : (data.payments && (Array.isArray(data.payments) && data.payments.length > 0)
-              ? data.payments
-              : undefined), // Ya no usamos fallback a paymentMethodId desde env - debe venir desde HubCentral
+            ? data.payments
+            : undefined),
     };
 
     try {
@@ -471,137 +471,137 @@ export class InvoiceService {
           // eslint-disable-next-line no-console
           console.error('[ApiSigo] fallo variante', { variant: i + 1, siigoCode, msg });
 
-           if (isInvalidTax) {
-             const withoutTaxes = JSON.parse(JSON.stringify(payloadToSend));
-             if (Array.isArray(withoutTaxes.items)) {
-               withoutTaxes.items = withoutTaxes.items.map((it: any) => { const { taxes, ...rest } = it || {}; return rest; });
-             }
-             try {
-               // eslint-disable-next-line no-console
-               console.log('[ApiSigo] reintento sin taxes');
-               const response2 = await this.client.post('/v1/invoices', withoutTaxes, { headers, timeout: invoiceTimeout });
-               const out2 = (response2 as { data: Record<string, unknown> }).data;
-               return out2;
-             } catch (err2: any) {
-               lastErr = err2;
-               break;
-             }
-           }
-           if (!isSellerReq || i === variants.length - 1) { lastErr = err; break; }
-           lastErr = err;
-         }
-       }
-       throw lastErr;
-     } catch (error: any) {
-       const status = error?.response?.status;
-       const details = error?.response?.data;
-       const siigoCode = error?.response?.headers?.['siigoapi-error-code'];
-       const e = new Error(error?.message || 'SIGO API error') as any;
-       e.code = 'SIGO_API_ERROR';
-       e.statusCode = status || 502;
-       let sentBody: any;
-       try { sentBody = typeof error?.config?.data === 'string' ? error.config.data : JSON.stringify(error?.config?.data); } catch {}
-       const shape = (() => {
-         try {
-           const s: any = (typeof sentBody === 'string' ? JSON.parse(sentBody) : sentBody) || {};
-           return {
-             hasRootSeller: Object.prototype.hasOwnProperty.call(s, 'seller'),
-             rootSeller: s?.seller && typeof s?.seller,
-             hasRootSellerId: Object.prototype.hasOwnProperty.call(s, 'seller_id'),
-             rootSellerId: s?.seller_id && typeof s?.seller_id,
-             hasDoc: !!s?.document,
-             hasDocSeller: s?.document && Object.prototype.hasOwnProperty.call(s.document, 'seller'),
-             docSeller: s?.document?.seller && typeof s?.document?.seller,
-             hasDocSellerId: s?.document && Object.prototype.hasOwnProperty.call(s.document, 'seller_id'),
-             docSellerId: s?.document?.seller_id && typeof s?.document?.seller_id,
-           };
-         } catch { return null; }
-       })();
-       e.details = {
-         siigoCode,
-         details,
-         code: error?.code,
-         errno: error?.errno,
-         url: error?.config?.url,
-         method: error?.config?.method,
-         timeout: error?.config?.timeout,
-         payloadShape: shape,
-       };
-       // eslint-disable-next-line no-console
-       console.error('[ApiSigo] error final createInvoice', { status: e.statusCode, siigoCode, shape });
-       throw e;
-     }
-   }
+          if (isInvalidTax) {
+            const withoutTaxes = JSON.parse(JSON.stringify(payloadToSend));
+            if (Array.isArray(withoutTaxes.items)) {
+              withoutTaxes.items = withoutTaxes.items.map((it: any) => { const { taxes, ...rest } = it || {}; return rest; });
+            }
+            try {
+              // eslint-disable-next-line no-console
+              console.log('[ApiSigo] reintento sin taxes');
+              const response2 = await this.client.post('/v1/invoices', withoutTaxes, { headers, timeout: invoiceTimeout });
+              const out2 = (response2 as { data: Record<string, unknown> }).data;
+              return out2;
+            } catch (err2: any) {
+              lastErr = err2;
+              break;
+            }
+          }
+          if (!isSellerReq || i === variants.length - 1) { lastErr = err; break; }
+          lastErr = err;
+        }
+      }
+      throw lastErr;
+    } catch (error: any) {
+      const status = error?.response?.status;
+      const details = error?.response?.data;
+      const siigoCode = error?.response?.headers?.['siigoapi-error-code'];
+      const e = new Error(error?.message || 'SIGO API error') as any;
+      e.code = 'SIGO_API_ERROR';
+      e.statusCode = status || 502;
+      let sentBody: any;
+      try { sentBody = typeof error?.config?.data === 'string' ? error.config.data : JSON.stringify(error?.config?.data); } catch { }
+      const shape = (() => {
+        try {
+          const s: any = (typeof sentBody === 'string' ? JSON.parse(sentBody) : sentBody) || {};
+          return {
+            hasRootSeller: Object.prototype.hasOwnProperty.call(s, 'seller'),
+            rootSeller: s?.seller && typeof s?.seller,
+            hasRootSellerId: Object.prototype.hasOwnProperty.call(s, 'seller_id'),
+            rootSellerId: s?.seller_id && typeof s?.seller_id,
+            hasDoc: !!s?.document,
+            hasDocSeller: s?.document && Object.prototype.hasOwnProperty.call(s.document, 'seller'),
+            docSeller: s?.document?.seller && typeof s?.document?.seller,
+            hasDocSellerId: s?.document && Object.prototype.hasOwnProperty.call(s.document, 'seller_id'),
+            docSellerId: s?.document?.seller_id && typeof s?.document?.seller_id,
+          };
+        } catch { return null; }
+      })();
+      e.details = {
+        siigoCode,
+        details,
+        code: error?.code,
+        errno: error?.errno,
+        url: error?.config?.url,
+        method: error?.config?.method,
+        timeout: error?.config?.timeout,
+        payloadShape: shape,
+      };
+      // eslint-disable-next-line no-console
+      console.error('[ApiSigo] error final createInvoice', { status: e.statusCode, siigoCode, shape });
+      throw e;
+    }
+  }
 
-   async getPaymentTypes(
-     authHeaders: SigoAuthHeaders,
-     documentType: string = 'FV',
-   ): Promise<Record<string, unknown>> {
-     const response = await this.client.get(`/v1/payment-types?document_type=${documentType}`, {
-       headers: authHeaders,
-     });
-     return (response as { data: Record<string, unknown> }).data;
-   }
+  async getPaymentTypes(
+    authHeaders: SigoAuthHeaders,
+    documentType: string = 'FV',
+  ): Promise<Record<string, unknown>> {
+    const response = await this.client.get(`/v1/payment-types?document_type=${documentType}`, {
+      headers: authHeaders,
+    });
+    return (response as { data: Record<string, unknown> }).data;
+  }
 
-   async createCreditNoteByInvoiceNumber(
-     serie: string,
-     numero: string | number,
-     authHeaders: SigoAuthHeaders,
-     motivo?: string,
-   ): Promise<Record<string, unknown>> {
-     const res = await this.client.get(`/v1/invoices?number=${encodeURIComponent(String(numero))}` ,{ headers: authHeaders });
-     const list: any[] = (res as any).data?.results || [];
-     const inv = Array.isArray(list) && list.length > 0 ? list[0] : null;
-     if (!inv || !inv.id) {
-       throw new Error('Factura no encontrada en Siigo');
-     }
+  async createCreditNoteByInvoiceNumber(
+    serie: string,
+    numero: string | number,
+    authHeaders: SigoAuthHeaders,
+    motivo?: string,
+  ): Promise<Record<string, unknown>> {
+    const res = await this.client.get(`/v1/invoices?number=${encodeURIComponent(String(numero))}`, { headers: authHeaders });
+    const list: any[] = (res as any).data?.results || [];
+    const inv = Array.isArray(list) && list.length > 0 ? list[0] : null;
+    if (!inv || !inv.id) {
+      throw new Error('Factura no encontrada en Siigo');
+    }
 
-     const payload: Record<string, unknown> = {
-       document: { id: parseInt(process.env.SIIGO_CREDIT_NOTE_DOCUMENT_ID || '28420', 10) },
-       date: new Date().toISOString().split('T')[0],
-       customer: {
-         identification: inv?.customer?.identification || '',
-         branch_office: 0,
-       },
-       invoice: { id: inv.id },
-       observations: motivo || 'Anulación total',
-     };
+    const payload: Record<string, unknown> = {
+      document: { id: parseInt(process.env.SIIGO_CREDIT_NOTE_DOCUMENT_ID || '28420', 10) },
+      date: new Date().toISOString().split('T')[0],
+      customer: {
+        identification: inv?.customer?.identification || '',
+        branch_office: 0,
+      },
+      invoice: { id: inv.id },
+      observations: motivo || 'Anulación total',
+    };
 
-     const cn = await this.client.post('/v1/credit-notes', payload, { headers: authHeaders });
-     return (cn as { data: Record<string, unknown> }).data;
-   }
+    const cn = await this.client.post('/v1/credit-notes', payload, { headers: authHeaders });
+    return (cn as { data: Record<string, unknown> }).data;
+  }
 
-   convertOrderToInvoice(order: {
-     id: number;
-     store?: { name?: string };
-     customer?: { documentNumber?: string; name?: string; email?: string; phone?: string };
-     user?: { documentNumber?: string; name?: string; email?: string };
-     items: Array<{ product: { id: number; title: string; code?: string }; quantity: number; finalPrice: number }>;
-   }): CreateInvoiceData {
-     const idDoc = order.customer?.documentNumber || order.user?.documentNumber || '222222222222';
+  convertOrderToInvoice(order: {
+    id: number;
+    store?: { name?: string };
+    customer?: { documentNumber?: string; name?: string; email?: string; phone?: string };
+    user?: { documentNumber?: string; name?: string; email?: string };
+    items: Array<{ product: { id: number; title: string; code?: string }; quantity: number; finalPrice: number }>;
+  }): CreateInvoiceData {
+    const idDoc = order.customer?.documentNumber || order.user?.documentNumber || '222222222222';
 
-     const customerData = idDoc !== '222222222222'
-       ? {
-           tipoDocumento: 'CC' as const,
-           numeroDocumento: idDoc,
-           razonSocial: order.customer?.name || order.user?.name || 'Cliente Sin Nombre',
-           email: order.customer?.email || order.user?.email,
-           telefono: order.customer?.phone,
-         }
-       : undefined;
+    const customerData = idDoc !== '222222222222'
+      ? {
+        tipoDocumento: 'CC' as const,
+        numeroDocumento: idDoc,
+        razonSocial: order.customer?.name || order.user?.name || 'Cliente Sin Nombre',
+        email: order.customer?.email || order.user?.email,
+        telefono: order.customer?.phone,
+      }
+      : undefined;
 
-     return {
-       date: new Date().toISOString().split('T')[0],
-       customer: { identification: idDoc, branch_office: 0 },
-       customerData,
-       items: order.items.map((it) => ({
-         code: it.product.code || `GRAF-${it.product.id}`,
-         description: it.product.title,
-         quantity: it.quantity,
-         price: it.finalPrice,
-         discount: 0,
-       })),
-       observations: `Factura generada desde orden #${order.id}${order.store?.name ? ' - Tienda: ' + order.store.name : ''}`,
-     };
-   }
+    return {
+      date: new Date().toISOString().split('T')[0],
+      customer: { identification: idDoc, branch_office: 0 },
+      customerData,
+      items: order.items.map((it) => ({
+        code: it.product.code || `GRAF-${it.product.id}`,
+        description: it.product.title,
+        quantity: it.quantity,
+        price: it.finalPrice,
+        discount: 0,
+      })),
+      observations: `Factura generada desde orden #${order.id}${order.store?.name ? ' - Tienda: ' + order.store.name : ''}`,
+    };
+  }
 }
