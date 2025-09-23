@@ -37,34 +37,11 @@ export class InvoicesController {
   @Post()
   @HttpCode(HttpStatus.CREATED)
   async create(@Req() req: RequestWithSigo, @Body() dto: CreateInvoiceDto) {
-    const idem = undefined; // ya no se acepta desde el cliente
     const authEmail = (req as any)?.sigoCredentials?.email || (req.headers['x-email'] as string) || undefined;
-    const partner = req.sigoAuthHeaders?.['Partner-Id'];
     try {
-      const paymentsPreview = Array.isArray((dto as any)?.payments)
-        ? (dto as any).payments.map((p: any) => ({ id: p?.id, value: p?.value, due_date: p?.due_date }))
-        : [];
-      console.log('[ApiSigo] → /invoices create', {
-        idem,
-        partner,
-        hasCustomerData: !!dto?.customerData,
-        items: (dto?.items || []).length,
-        hasPayments: Array.isArray(dto?.payments),
-        paymentsPreview,
-      });
       const result = await this.invoiceService.createInvoice(dto as any, req.sigoAuthHeaders!, undefined, authEmail);
-      console.log('[ApiSigo] ← /invoices create OK', { idem, partner, ok: true });
       return { success: true, message: 'Factura creada exitosamente', data: result };
     } catch (e: any) {
-      console.error('[ApiSigo] × /invoices create FAIL', {
-        idem,
-        partner,
-        code: e?.code,
-        status: e?.statusCode || e?.response?.status,
-        siigoCode: e?.details?.siigoCode,
-        url: e?.details?.url || e?.response?.config?.url,
-        method: e?.details?.method || e?.response?.config?.method,
-      });
       throw e;
     }
   }
@@ -73,28 +50,11 @@ export class InvoicesController {
   @HttpCode(HttpStatus.CREATED)
   async createFromOrder(@Req() req: RequestWithSigo, @Body() order: CreateInvoiceFromOrderDto) {
     const dto = this.invoiceService.convertOrderToInvoice(order as any);
-    const idem = undefined; // ya no se acepta desde el cliente
     const authEmail = (req as any)?.sigoCredentials?.email || (req.headers['x-email'] as string) || undefined;
-    const partner = req.sigoAuthHeaders?.['Partner-Id'];
     try {
-      console.log('[ApiSigo] → /invoices/from-order', {
-        idem,
-        partner,
-        orderId: (order as any)?.id,
-        hasCustomerData: !!dto?.customerData,
-        items: (dto?.items || []).length,
-      });
       const result = await this.invoiceService.createInvoice(dto as any, req.sigoAuthHeaders!, undefined, authEmail);
-      console.log('[ApiSigo] ← /invoices/from-order OK', { idem, partner, ok: true });
       return { success: true, message: 'Factura creada desde orden', data: result };
     } catch (e: any) {
-      console.error('[ApiSigo] × /invoices/from-order FAIL', {
-        idem,
-        partner,
-        code: e?.code,
-        status: e?.statusCode || e?.response?.status,
-        siigoCode: e?.details?.siigoCode,
-      });
       throw e;
     }
   }
