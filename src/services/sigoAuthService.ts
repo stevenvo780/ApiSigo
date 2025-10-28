@@ -78,6 +78,10 @@ export class SigoAuthService {
         access_key: accessKey,
       };
 
+      console.log(
+        `[SigoAuth] Autenticando usuario: ${credentials.email} en ${authUrl}`
+      );
+
       const response = await axios.post<SigoAuthResponse>(authUrl, authData, {
         timeout: 10000,
         headers: {
@@ -91,6 +95,11 @@ export class SigoAuthService {
 
       const token = response.data.access_token;
 
+      console.log(
+        `[SigoAuth] ✓ Autenticación exitosa para ${credentials.email}` +
+        (response.data.expires_in ? ` (expira en ${response.data.expires_in}s)` : "")
+      );
+
       AuthenticationCache.setToken(
         credentials.email,
         credentials.apiKey,
@@ -99,13 +108,24 @@ export class SigoAuthService {
 
       return token;
     } catch (error) {
+      console.error(
+        `[SigoAuth] ✗ Error de autenticación para ${credentials.email}:`,
+        error instanceof Error ? error.message : String(error)
+      );
       throw new Error(`Error de autenticación: ${error}`);
     }
   }
 
   public static async getAuthHeaders(
     credentials: SigoCredentials,
+    forceRefresh = false,
   ): Promise<SigoAuthHeaders> {
+    // Si se fuerza refresh, limpiar cache primero
+    if (forceRefresh) {
+      console.log(`[SigoAuth] Refresh forzado para ${credentials.email}`);
+      AuthenticationCache.clearCache();
+    }
+
     let token = AuthenticationCache.getToken(
       credentials.email,
       credentials.apiKey,

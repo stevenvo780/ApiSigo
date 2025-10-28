@@ -49,18 +49,11 @@ export interface CreateInvoiceData {
 
 @Injectable()
 export class InvoiceService {
-  // Cliente HTTP y caches
   private client: AxiosInstance;
-  private static readonly TTL_MS = 5 * 60 * 1000; // 5 minutos
+  private static readonly TTL_MS = 5 * 60 * 1000;
   private static paymentTypesCache = new Map<string, { items: any[]; exp: number }>();
   private static sellersCache = new Map<string, { items: any[]; exp: number }>();
   private static taxesCache = new Map<string, { items: any[]; exp: number }>();
-
-  // Acepta UUID v4 (con o sin guiones) o patrón base64url/alfanumérico seguro [A-Za-z0-9_-]{10,64}
-
-  // Normaliza claves (uuid v4 → sin guiones). Si no es válida, devuelve undefined
-
-  // Genera una clave compacta compatible (sin guiones, base64url)
 
   constructor() {
     const baseURL = process.env.SIIGO_API_URL || process.env.SIGO_API_URL || process.env.SIGO_BASE_URL || process.env.SIIGO_BASE_URL;
@@ -71,7 +64,6 @@ export class InvoiceService {
 
     this.client.interceptors.request.use((config: AxiosRequestConfig) => {
       (config as any).meta = { start: Date.now() };
-      // Log compacto de request
       try {
         const isInv = String(config.url).includes('/v1/invoices') && String(config.method).toLowerCase() === 'post';
         if (isInv) {
@@ -84,19 +76,18 @@ export class InvoiceService {
             docSeller: typeof body?.document?.seller,
             docSellerId: typeof body?.document?.seller_id,
           };
-          // eslint-disable-next-line no-console
           console.log('[SIGO] → POST /v1/invoices', { items, hasTaxes, sellerShapes });
         }
       } catch { }
       return config;
     });
+    
     this.client.interceptors.response.use(
       (res: AxiosResponse) => {
         const start = (res.config as any).meta?.start || Date.now();
         const ms = Date.now() - start;
         try {
           if (String(res.config.url).includes('/v1/invoices') && String(res.config.method).toLowerCase() === 'post') {
-            // eslint-disable-next-line no-console
             console.log('[SIGO] ← /v1/invoices OK', { status: res.status, ms });
           }
         } catch { }
@@ -109,7 +100,6 @@ export class InvoiceService {
         const status = (err && (err as any).response) ? (err as any).response.status : undefined;
         const url = (cfg as any)?.url;
         const msg = (err as any)?.response?.data?.Errors?.[0]?.Message || (err as any)?.message;
-        // eslint-disable-next-line no-console
         console.error('[SIGO] × request error', { url, status, ms, msg });
         return Promise.reject(err);
       },
@@ -361,7 +351,6 @@ export class InvoiceService {
       }
     }
 
-    // Ya no obtenemos paymentMethodId desde env - la configuración viene desde HubCentral
     let resolvedSellerId = sellerIdOverride ?? (await this.resolveSellerId(authHeaders, sellerEmailHint));
     if (!resolvedSellerId) {
       const envFallback = process.env.SIIGO_SELLER_ID || process.env.SIIGO_FALLBACK_SELLER_ID;
@@ -406,13 +395,10 @@ export class InvoiceService {
     const taxesTotal = preparedItems.reduce((t: number, it: any) => t + it.__tax, 0);
     const total = Math.round((subtotal + taxesTotal) * 100) / 100;
 
-    // Passthrough de payments: usar exactamente lo que viene desde HubCentral sin validar contra Siigo
-    // Si no vienen payments, dejamos que Siigo aplique su default (payments: undefined)
     const safePayments: InvoicePayment[] | undefined = Array.isArray(data.payments) && data.payments.length > 0
       ? data.payments.map((p) => ({ id: Number(p.id), value: Number(p.value), due_date: p.due_date }))
       : undefined;
 
-    // eslint-disable-next-line no-console
     console.log('[ApiSigo] build payload resumen', {
       items: preparedItems.length,
       subtotal,
@@ -450,13 +436,11 @@ export class InvoiceService {
       if (headers['Partner-Id'] && !headers['Partner-ID']) headers['Partner-ID'] = headers['Partner-Id'];
 
       const variants = this.buildSellerVariants(sigoPayload, Number(resolvedSellerId));
-      // eslint-disable-next-line no-console
       console.log('[ApiSigo] intentos variantes seller', { variants: variants.length });
 
       let lastErr: any;
       for (let i = 0; i < variants.length; i++) {
         const payloadToSend: any = JSON.parse(JSON.stringify(variants[i]));
-        // eslint-disable-next-line no-console
         console.log('[ApiSigo] intento envío', { variant: i + 1, hasDocSeller: !!payloadToSend?.document?.seller, hasRootSeller: Object.prototype.hasOwnProperty.call(payloadToSend, 'seller') });
         try {
           const response = await this.client.post('/v1/invoices', payloadToSend, { headers, timeout: invoiceTimeout });
@@ -468,7 +452,6 @@ export class InvoiceService {
           const params = err?.response?.data?.Errors?.[0]?.Params || [];
           const isSellerReq = siigoCode === 'parameter_required' && (msg?.toLowerCase().includes('seller') || params?.includes('seller'));
           const isInvalidTax = siigoCode === 'invalid_reference' && (msg?.toLowerCase().includes('tax') || params?.some((p: string) => p.includes('taxes')));
-          // eslint-disable-next-line no-console
           console.error('[ApiSigo] fallo variante', { variant: i + 1, siigoCode, msg });
 
           if (isInvalidTax) {
@@ -477,7 +460,6 @@ export class InvoiceService {
               withoutTaxes.items = withoutTaxes.items.map((it: any) => { const { taxes, ...rest } = it || {}; return rest; });
             }
             try {
-              // eslint-disable-next-line no-console
               console.log('[ApiSigo] reintento sin taxes');
               const response2 = await this.client.post('/v1/invoices', withoutTaxes, { headers, timeout: invoiceTimeout });
               const out2 = (response2 as { data: Record<string, unknown> }).data;
@@ -527,7 +509,6 @@ export class InvoiceService {
         timeout: error?.config?.timeout,
         payloadShape: shape,
       };
-      // eslint-disable-next-line no-console
       console.error('[ApiSigo] error final createInvoice', { status: e.statusCode, siigoCode, shape });
       throw e;
     }
